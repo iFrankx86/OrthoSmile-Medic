@@ -57,3 +57,11 @@ Construcción del frontend React por módulos iniciando con patients (Fase 05).
 - Se utiliza DTO en capa de API.
 - Se utiliza Flyway para migraciones.
 - Se utiliza Cloud SQL como BD objetivo.
+
+## Reglas de trabajo
+
+- No inventar requisitos.
+- No introducir dependencias innecesarias.
+- No guardar secretos en el repositorio.
+- No marcar funcionalidades como completadas si no funcionan.
+- Mantener documentación y avance sincronizados.

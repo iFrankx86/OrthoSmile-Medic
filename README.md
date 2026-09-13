@@ -65,10 +65,4 @@ React SPA → API Client → API Gateway → Spring Boot (monolito modular) → 
 
 Punto de entrada de documentación: [docs/README.md](docs/README.md)
 
-## Reglas de trabajo
 
-- No inventar requisitos.
-- No introducir dependencias innecesarias.
-- No guardar secretos en el repositorio.
-- No marcar funcionalidades como completadas si no funcionan.
-- Mantener documentación y avance sincronizados.
