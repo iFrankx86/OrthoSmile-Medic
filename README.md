@@ -1,16 +1,74 @@
-# React + Vite
+# Orthosmille Medic
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Plataforma web para la gestión de clínica odontológica.
 
-Currently, two official plugins are available:
+## Estado actual
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Fase 01 completada: análisis, alcance, arquitectura objetivo y documentación base.
 
-## React Compiler
+No se implementaron funcionalidades nuevas en esta fase.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Objetivo del proyecto
 
-## Expanding the ESLint configuration
+Construir un sistema modular para gestionar:
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+- Autenticación
+- Pacientes
+- Profesionales
+- Citas
+- Atenciones / Historial clínico
+- Pagos
+- Auditoría
+
+## Arquitectura objetivo
+
+React SPA → API Client → API Gateway → Spring Boot (monolito modular) → MySQL (Cloud SQL).
+
+## Stack tecnológico objetivo
+
+### Frontend
+
+- React
+- TypeScript
+- Vite
+- React Router
+- Axios
+- React Hook Form
+- Bootstrap (o solución UI consistente)
+- Vitest
+- React Testing Library
+
+### Backend
+
+- Java
+- Spring Boot
+- Spring Web
+- Spring Data JPA
+- Spring Security
+- Bean Validation
+- Flyway
+- MySQL
+- JUnit
+- Mockito
+- Testcontainers
+
+### Infraestructura
+
+- Docker
+- Google Cloud Run
+- Cloud SQL
+- API Gateway
+- Secret Manager
+- Cloud Logging / Monitoring
+
+## Documentación
+
+Punto de entrada de documentación: [docs/README.md](docs/README.md)
+
+## Reglas de trabajo
+
+- No inventar requisitos.
+- No introducir dependencias innecesarias.
+- No guardar secretos en el repositorio.
+- No marcar funcionalidades como completadas si no funcionan.
+- Mantener documentación y avance sincronizados.
