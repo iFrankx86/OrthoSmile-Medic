@@ -5,36 +5,11 @@ import com.orthosmille.medic.modules.appointments.entity.AppointmentStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.time.LocalDateTime;
-import java.util.Set;
-
-public interface AppointmentRepository extends JpaRepository<Appointment, Long> {
-
-    boolean existsByProfessionalIdAndScheduledStartLessThanAndScheduledEndGreaterThanAndStatusIn(
-            Long professionalId,
-            LocalDateTime newEnd,
-            LocalDateTime newStart,
-            Set<AppointmentStatus> statuses
-    );
-
-    boolean existsByProfessionalIdAndIdNotAndScheduledStartLessThanAndScheduledEndGreaterThanAndStatusIn(
-            Long professionalId,
-            Long id,
-            LocalDateTime newEnd,
-            LocalDateTime newStart,
-            Set<AppointmentStatus> statuses
-    );
-}
-package com.orthosmille.medic.modules.appointments.repository;
-
-import com.orthosmille.medic.modules.appointments.entity.Appointment;
-import com.orthosmille.medic.modules.appointments.entity.AppointmentStatus;
-import org.springframework.data.jpa.repository.JpaRepository;
-
-import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 
 public interface AppointmentRepository extends JpaRepository<Appointment, Long> {
+
     boolean existsByProfessionalIdAndScheduledStartLessThanAndScheduledEndGreaterThanAndStatusIn(
             Long professionalId,
             LocalDateTime scheduledEnd,
