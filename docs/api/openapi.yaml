@@ -1,0 +1,713 @@
+openapi: 3.0.3
+info:
+  title: Orthosmille Medic API
+  version: 1.0.0
+  description: API REST versionada para gestión clínica odontológica (MVP)
+servers:
+  - url: /api/v1
+tags:
+  - name: Auth
+  - name: Patients
+  - name: Professionals
+  - name: Appointments
+  - name: ClinicalHistory
+  - name: Payments
+  - name: Audit
+
+paths:
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login exitoso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout
+      responses:
+        '200':
+          description: Logout exitoso
+
+  /patients:
+    get:
+      tags: [Patients]
+      summary: Listar pacientes
+      parameters:
+        - in: query
+          name: q
+          schema:
+            type: string
+          required: false
+          description: Búsqueda por nombre, apellido o documento
+      responses:
+        '200':
+          description: Listado de pacientes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PatientResponse'
+    post:
+      tags: [Patients]
+      summary: Crear paciente
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatientRequest'
+      responses:
+        '201':
+          description: Paciente creado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PatientResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /patients/{id}:
+    get:
+      tags: [Patients]
+      summary: Obtener paciente por id
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Paciente encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PatientResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Patients]
+      summary: Actualizar paciente
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatientRequest'
+      responses:
+        '200':
+          description: Paciente actualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PatientResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /patients/{id}/status:
+    patch:
+      tags: [Patients]
+      summary: Cambiar estado de paciente
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+        - in: query
+          name: active
+          required: true
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Estado actualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PatientResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /professionals:
+    get:
+      tags: [Professionals]
+      summary: Listar profesionales
+      responses:
+        '200':
+          description: Listado de profesionales
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProfessionalResponse'
+    post:
+      tags: [Professionals]
+      summary: Crear profesional
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfessionalRequest'
+      responses:
+        '201':
+          description: Profesional creado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfessionalResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /professionals/{id}:
+    get:
+      tags: [Professionals]
+      summary: Obtener profesional por id
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Profesional encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfessionalResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Professionals]
+      summary: Actualizar profesional
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfessionalRequest'
+      responses:
+        '200':
+          description: Profesional actualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfessionalResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /professionals/{id}/status:
+    patch:
+      tags: [Professionals]
+      summary: Cambiar estado de profesional
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+        - in: query
+          name: active
+          required: true
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Estado actualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfessionalResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /appointments:
+    get:
+      tags: [Appointments]
+      summary: Listar citas
+      responses:
+        '200':
+          description: Listado de citas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AppointmentResponse'
+    post:
+      tags: [Appointments]
+      summary: Crear cita
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AppointmentRequest'
+      responses:
+        '201':
+          description: Cita creada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppointmentResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /appointments/{id}:
+    get:
+      tags: [Appointments]
+      summary: Obtener cita por id
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Cita encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppointmentResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Appointments]
+      summary: Actualizar cita
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AppointmentRequest'
+      responses:
+        '200':
+          description: Cita actualizada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppointmentResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /appointments/{id}/status:
+    patch:
+      tags: [Appointments]
+      summary: Cambiar estado de cita
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AppointmentStatusRequest'
+      responses:
+        '200':
+          description: Estado actualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppointmentResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /clinical-history:
+    post:
+      tags: [ClinicalHistory]
+      summary: Crear atención clínica
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClinicalRecordRequest'
+      responses:
+        '201':
+          description: Atención registrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClinicalRecordResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /clinical-history/{id}:
+    get:
+      tags: [ClinicalHistory]
+      summary: Obtener atención por id
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Atención encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClinicalRecordResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /clinical-history/patients/{patientId}:
+    get:
+      tags: [ClinicalHistory]
+      summary: Listar historial por paciente
+      parameters:
+        - in: path
+          name: patientId
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Historial clínico
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ClinicalRecordResponse'
+
+  /payments:
+    get:
+      tags: [Payments]
+      summary: Listar pagos
+      parameters:
+        - in: query
+          name: patientId
+          required: false
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Listado de pagos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PaymentResponse'
+    post:
+      tags: [Payments]
+      summary: Registrar pago
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentRequest'
+      responses:
+        '201':
+          description: Pago registrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /payments/{id}:
+    get:
+      tags: [Payments]
+      summary: Obtener pago por id
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Pago encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /audit-logs:
+    get:
+      tags: [Audit]
+      summary: Listar últimos logs de auditoría
+      responses:
+        '200':
+          description: Logs de auditoría
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AuditLogResponse'
+
+components:
+  parameters:
+    IdPath:
+      in: path
+      name: id
+      required: true
+      schema:
+        type: integer
+        format: int64
+
+  responses:
+    BadRequest:
+      description: Error de validación
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    NotFound:
+      description: Recurso no encontrado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    Conflict:
+      description: Conflicto de negocio
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+
+  schemas:
+    ApiError:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        status:
+          type: integer
+        error:
+          type: string
+        message:
+          type: string
+        path:
+          type: string
+        details:
+          type: array
+          items:
+            type: string
+
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+
+    LoginResponse:
+      type: object
+      properties:
+        userId:
+          type: integer
+          format: int64
+        username:
+          type: string
+        role:
+          type: string
+        token:
+          type: string
+
+    PatientRequest:
+      type: object
+      required: [firstName, lastName, documentType, documentNumber, birthDate]
+      properties:
+        firstName: { type: string, maxLength: 80 }
+        lastName: { type: string, maxLength: 80 }
+        documentType:
+          type: string
+          enum: [DNI, PASSPORT, OTHER]
+        documentNumber: { type: string, maxLength: 30 }
+        birthDate: { type: string, format: date }
+        email: { type: string, format: email }
+        phone: { type: string, maxLength: 30 }
+        address: { type: string, maxLength: 255 }
+
+    PatientResponse:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        firstName: { type: string }
+        lastName: { type: string }
+        documentType: { type: string }
+        documentNumber: { type: string }
+        birthDate: { type: string, format: date }
+        email: { type: string }
+        phone: { type: string }
+        address: { type: string }
+        active: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    ProfessionalRequest:
+      type: object
+      required: [firstName, lastName, licenseNumber, specialty]
+      properties:
+        firstName: { type: string, maxLength: 80 }
+        lastName: { type: string, maxLength: 80 }
+        licenseNumber: { type: string, maxLength: 50 }
+        specialty: { type: string, maxLength: 100 }
+        phone: { type: string, maxLength: 30 }
+
+    ProfessionalResponse:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        userId: { type: integer, format: int64, nullable: true }
+        firstName: { type: string }
+        lastName: { type: string }
+        licenseNumber: { type: string }
+        specialty: { type: string }
+        phone: { type: string }
+        active: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    AppointmentRequest:
+      type: object
+      required: [patientId, professionalId, scheduledStart, scheduledEnd]
+      properties:
+        patientId: { type: integer, format: int64 }
+        professionalId: { type: integer, format: int64 }
+        scheduledStart: { type: string, format: date-time }
+        scheduledEnd: { type: string, format: date-time }
+        reason: { type: string, maxLength: 255 }
+        notes: { type: string }
+
+    AppointmentStatusRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [PROGRAMADA, CONFIRMADA, CANCELADA, ATENDIDA, NO_ASISTIO]
+        canceledReason:
+          type: string
+          maxLength: 255
+
+    AppointmentResponse:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        patientId: { type: integer, format: int64 }
+        professionalId: { type: integer, format: int64 }
+        scheduledStart: { type: string, format: date-time }
+        scheduledEnd: { type: string, format: date-time }
+        status:
+          type: string
+          enum: [PROGRAMADA, CONFIRMADA, CANCELADA, ATENDIDA, NO_ASISTIO]
+        reason: { type: string }
+        notes: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    ClinicalRecordRequest:
+      type: object
+      required: [appointmentId, patientId, professionalId, attentionDate, chiefComplaint, clinicalNotes]
+      properties:
+        appointmentId: { type: integer, format: int64 }
+        patientId: { type: integer, format: int64 }
+        professionalId: { type: integer, format: int64 }
+        attentionDate: { type: string, format: date-time }
+        chiefComplaint: { type: string }
+        diagnosis: { type: string }
+        treatmentPlan: { type: string }
+        clinicalNotes: { type: string }
+
+    ClinicalRecordResponse:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        appointmentId: { type: integer, format: int64 }
+        patientId: { type: integer, format: int64 }
+        professionalId: { type: integer, format: int64 }
+        attentionDate: { type: string, format: date-time }
+        chiefComplaint: { type: string }
+        diagnosis: { type: string, nullable: true }
+        treatmentPlan: { type: string, nullable: true }
+        clinicalNotes: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    PaymentRequest:
+      type: object
+      required: [clinicalRecordId, amount, paymentMethod, status, paidAt]
+      properties:
+        clinicalRecordId: { type: integer, format: int64 }
+        amount: { type: number, format: double }
+        paymentMethod:
+          type: string
+          enum: [EFECTIVO, TARJETA, TRANSFERENCIA, YAPE, PLIN, OTRO]
+        status:
+          type: string
+          enum: [PENDIENTE, PARCIAL, PAGADO, ANULADO]
+        currency: { type: string, minLength: 3, maxLength: 3 }
+        reference: { type: string, maxLength: 100 }
+        notes: { type: string, maxLength: 255 }
+        paidAt: { type: string, format: date-time }
+
+    PaymentResponse:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        clinicalRecordId: { type: integer, format: int64 }
+        amount: { type: number, format: double }
+        currency: { type: string }
+        paymentMethod:
+          type: string
+          enum: [EFECTIVO, TARJETA, TRANSFERENCIA, YAPE, PLIN, OTRO]
+        status:
+          type: string
+          enum: [PENDIENTE, PARCIAL, PAGADO, ANULADO]
+        reference: { type: string, nullable: true }
+        notes: { type: string, nullable: true }
+        paidAt: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    AuditLogResponse:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        userId: { type: integer, format: int64, nullable: true }
+        action: { type: string }
+        entityName: { type: string }
+        entityId: { type: string, nullable: true }
+        metadata: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }

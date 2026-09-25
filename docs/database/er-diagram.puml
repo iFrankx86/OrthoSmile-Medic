@@ -1,0 +1,119 @@
+@startuml
+hide circle
+skinparam linetype ortho
+
+entity users {
+  *id : BIGINT <<PK>>
+  --
+  username : VARCHAR(80) <<UQ>>
+  email : VARCHAR(120) <<UQ>>
+  password_hash : VARCHAR(255)
+  role : ENUM
+  is_active : BOOLEAN
+  last_login_at : DATETIME?
+  deleted_at : DATETIME?
+  created_at : DATETIME
+  updated_at : DATETIME
+}
+
+entity professionals {
+  *id : BIGINT <<PK>>
+  --
+  user_id : BIGINT <<FK,UQ?>>
+  first_name : VARCHAR(80)
+  last_name : VARCHAR(80)
+  license_number : VARCHAR(50) <<UQ>>
+  specialty : VARCHAR(100)
+  phone : VARCHAR(30)?
+  is_active : BOOLEAN
+  deleted_at : DATETIME?
+  created_at : DATETIME
+  updated_at : DATETIME
+}
+
+entity patients {
+  *id : BIGINT <<PK>>
+  --
+  first_name : VARCHAR(80)
+  last_name : VARCHAR(80)
+  document_type : ENUM
+  document_number : VARCHAR(30)
+  birth_date : DATE
+  email : VARCHAR(120)?
+  phone : VARCHAR(30)?
+  address : VARCHAR(255)?
+  is_active : BOOLEAN
+  deleted_at : DATETIME?
+  created_at : DATETIME
+  updated_at : DATETIME
+}
+
+entity appointments {
+  *id : BIGINT <<PK>>
+  --
+  patient_id : BIGINT <<FK>>
+  professional_id : BIGINT <<FK>>
+  scheduled_start : DATETIME
+  scheduled_end : DATETIME
+  status : ENUM
+  reason : VARCHAR(255)?
+  notes : TEXT?
+  canceled_at : DATETIME?
+  canceled_reason : VARCHAR(255)?
+  created_at : DATETIME
+  updated_at : DATETIME
+}
+
+entity clinical_records {
+  *id : BIGINT <<PK>>
+  --
+  appointment_id : BIGINT <<FK,UQ>>
+  patient_id : BIGINT <<FK>>
+  professional_id : BIGINT <<FK>>
+  attention_date : DATETIME
+  chief_complaint : TEXT
+  diagnosis : TEXT?
+  treatment_plan : TEXT?
+  clinical_notes : TEXT
+  created_at : DATETIME
+  updated_at : DATETIME
+}
+
+entity payments {
+  *id : BIGINT <<PK>>
+  --
+  clinical_record_id : BIGINT <<FK>>
+  amount : DECIMAL(12,2)
+  currency : CHAR(3)
+  payment_method : ENUM
+  status : ENUM
+  reference : VARCHAR(100)?
+  notes : VARCHAR(255)?
+  paid_at : DATETIME
+  created_at : DATETIME
+  updated_at : DATETIME
+}
+
+entity audit_logs {
+  *id : BIGINT <<PK>>
+  --
+  user_id : BIGINT <<FK?>>
+  action : VARCHAR(120)
+  entity_name : VARCHAR(80)
+  entity_id : VARCHAR(64)?
+  metadata : JSON?
+  ip_address : VARCHAR(45)?
+  user_agent : VARCHAR(255)?
+  created_at : DATETIME
+}
+
+users ||--o| professionals : has profile
+patients ||--o{ appointments : books
+professionals ||--o{ appointments : attends
+appointments ||--o| clinical_records : generates
+patients ||--o{ clinical_records : owns
+professionals ||--o{ clinical_records : writes
+clinical_records ||--o{ payments : charged by
+users ||--o{ audit_logs : performs
+
+@enduml
