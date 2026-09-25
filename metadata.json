@@ -1,0 +1,7 @@
+{
+  "name": "OrthoSmile-Medic",
+  "description": "Comprehensive dental and orthodontic clinic management platform for patients, appointments, clinical histories, and payments.",
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
