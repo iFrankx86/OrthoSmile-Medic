@@ -1,13 +1,14 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Smile, Lock, User as UserIcon, AlertCircle } from 'lucide-react'
+import { Smile, Lock, User as UserIcon, AlertCircle, Eye, EyeOff, CheckCircle2 } from 'lucide-react'
 import { useAuth } from '../../app/providers/AppProviders'
 
 export function LoginPage() {
   const { login } = useAuth()
   const navigate = useNavigate()
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
+  const [username, setUsername] = useState('dr.chavez')
+  const [password, setPassword] = useState('chavez123')
+  const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -16,13 +17,19 @@ export function LoginPage() {
     setError(null)
     setLoading(true)
     try {
-      await login(username, password)
+      await login(username.trim(), password)
       navigate('/')
     } catch (err: any) {
       setError(err.response?.data?.message || 'Error al iniciar sesión. Verifique sus credenciales.')
     } finally {
       setLoading(false)
     }
+  }
+
+  const selectUser = (u: string, p: string) => {
+    setUsername(u)
+    setPassword(p)
+    setError(null)
   }
 
   return (
@@ -39,6 +46,59 @@ export function LoginPage() {
           <p className="text-xs sm:text-sm text-slate-500 font-medium">
             Gestión Odontológica y de Ortodoncia
           </p>
+        </div>
+
+        {/* Quick select credentials helper */}
+        <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200/80 space-y-2">
+          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider text-center">
+            Acceso Rápido por Rol
+          </p>
+          <div className="grid grid-cols-3 gap-1.5">
+            <button
+              type="button"
+              onClick={() => selectUser('dr.chavez', 'chavez123')}
+              className={`p-2 rounded-xl text-left border text-xs font-semibold transition-all ${
+                username === 'dr.chavez'
+                  ? 'bg-sky-500 text-white border-sky-500 shadow-sm'
+                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+              }`}
+            >
+              <div className="font-bold truncate">Dr. Chávez</div>
+              <div className={`text-[10px] ${username === 'dr.chavez' ? 'text-sky-100' : 'text-slate-400'}`}>
+                Odontólogo
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => selectUser('admin', 'admin123')}
+              className={`p-2 rounded-xl text-left border text-xs font-semibold transition-all ${
+                username === 'admin'
+                  ? 'bg-sky-500 text-white border-sky-500 shadow-sm'
+                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+              }`}
+            >
+              <div className="font-bold truncate">Admin</div>
+              <div className={`text-[10px] ${username === 'admin' ? 'text-sky-100' : 'text-slate-400'}`}>
+                Director
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => selectUser('mabel', 'mabel123')}
+              className={`p-2 rounded-xl text-left border text-xs font-semibold transition-all ${
+                username === 'mabel'
+                  ? 'bg-sky-500 text-white border-sky-500 shadow-sm'
+                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+              }`}
+            >
+              <div className="font-bold truncate">Mabel</div>
+              <div className={`text-[10px] ${username === 'mabel' ? 'text-sky-100' : 'text-slate-400'}`}>
+                Recepción
+              </div>
+            </button>
+          </div>
         </div>
 
         {error && (
@@ -73,27 +133,36 @@ export function LoginPage() {
             <div className="relative">
               <Lock size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 required
-                className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:bg-white transition-all min-h-[48px]"
+                className="w-full pl-10 pr-11 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:bg-white transition-all min-h-[48px]"
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none p-1"
+                aria-label={showPassword ? 'Ocultar contraseña' : 'Ver contraseña'}
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
             </div>
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3.5 px-4 bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white rounded-xl text-sm font-bold shadow-md shadow-sky-600/20 transition-all min-h-[48px] disabled:opacity-60 flex items-center justify-center"
+            className="w-full py-3.5 px-4 bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white rounded-xl text-sm font-bold shadow-md shadow-sky-600/20 transition-all min-h-[48px] disabled:opacity-60 flex items-center justify-center cursor-pointer"
           >
             {loading ? 'Accediendo...' : 'Iniciar Sesión'}
           </button>
         </form>
 
-        <div className="pt-2 text-center text-[11px] text-slate-400">
-          Servidor protegido con encriptación y control de acceso RBAC
+        <div className="pt-1 text-center text-[11px] text-slate-400 flex items-center justify-center gap-1.5">
+          <CheckCircle2 size={13} className="text-emerald-500" />
+          <span>Servidor protegido con encriptación y control de acceso RBAC</span>
         </div>
       </div>
     </div>
