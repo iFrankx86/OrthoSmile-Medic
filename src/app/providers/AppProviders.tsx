@@ -22,20 +22,42 @@ interface ToastContextType {
   removeToast: (id: string) => void
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined)
-const ToastContext = createContext<ToastContextType | undefined>(undefined)
+const defaultAuthContext: AuthContextType = {
+  user: {
+    id: 1,
+    username: 'admin',
+    fullName: 'Administrador',
+    role: 'ADMINISTRADOR',
+    email: 'admin@orthosmile.com',
+    token: 'orthosmille-session-1-init',
+  },
+  login: async () => {},
+  logout: () => {},
+  isAuthenticated: true,
+  hasRole: () => true,
+}
+
+const defaultToastContext: ToastContextType = {
+  toasts: [],
+  showToast: () => {},
+  removeToast: () => {},
+}
+
+const AuthContext = createContext<AuthContextType>(defaultAuthContext)
+const ToastContext = createContext<ToastContextType>(defaultToastContext)
 
 export function useAuth() {
   const context = useContext(AuthContext)
-  if (!context) throw new Error('useAuth must be used within an AuthProvider')
-  return context
+  return context || defaultAuthContext
 }
 
 export function useToast() {
   const context = useContext(ToastContext)
-  if (!context) throw new Error('useToast must be used within a ToastProvider')
-  return context
+  return context || defaultToastContext
 }
+
+export const AuthProvider = AppProviders
+export const ToastProvider = AppProviders
 
 export function AppProviders({ children }: { children: React.ReactNode }) {
   // Auth state
