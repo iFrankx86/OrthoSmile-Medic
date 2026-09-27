@@ -23,18 +23,11 @@ interface ToastContextType {
 }
 
 const defaultAuthContext: AuthContextType = {
-  user: {
-    id: 1,
-    username: 'admin',
-    fullName: 'Administrador',
-    role: 'ADMINISTRADOR',
-    email: 'admin@orthosmile.com',
-    token: 'orthosmille-session-1-init',
-  },
+  user: null,
   login: async () => {},
   logout: () => {},
-  isAuthenticated: true,
-  hasRole: () => true,
+  isAuthenticated: false,
+  hasRole: () => false,
 }
 
 const defaultToastContext: ToastContextType = {
@@ -68,15 +61,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
     } catch {
       // ignore
     }
-    // Default to admin user for convenient immediate access if desired, or null
-    return {
-      id: 1,
-      username: 'admin',
-      fullName: 'Administrador',
-      role: 'ADMINISTRADOR',
-      email: 'admin@orthosmile.com',
-      token: 'orthosmille-session-1-init',
-    }
+    return null
   })
 
   // Toasts state
