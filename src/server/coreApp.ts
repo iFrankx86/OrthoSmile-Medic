@@ -303,7 +303,6 @@ export const app = express()
 // Security Headers Middleware
 app.use((_req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff')
-  res.setHeader('X-Frame-Options', 'SAMEORIGIN')
   res.setHeader('X-XSS-Protection', '1; mode=block')
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
   res.setHeader('Permissions-Policy', 'geolocation=(), camera=(), microphone=()')
@@ -755,19 +754,20 @@ apiRouter.post('/payments', async (req: Request, res: Response) => {
 
 // 7. Audit Logs
 apiRouter.get('/audit-logs', async (_req: Request, res: Response) => {
-  if (isCloudDatabaseConnected()) {
-    try {
-      const rows = await query<any>(
-        `SELECT id, action, entity_name as "entityName", entity_id as "entityId",
-                user_id as "userId", username, timestamp, details
-         FROM audit_logs ORDER BY id DESC LIMIT 100`
-      )
-      return res.json(rows)
-    } catch (err) {
-      console.error('[Supabase Audit Logs Error]:', err)
-    }
-  }
   return res.json(auditLogs)
+})
+
+// 8. Database Collections / Tables for Inspector
+apiRouter.get('/database/tables', async (_req: Request, res: Response) => {
+  return res.json({
+    patients: { count: patients.length, data: patients },
+    appointments: { count: appointments.length, data: appointments },
+    clinical_records: { count: clinicalRecords.length, data: clinicalRecords },
+    payments: { count: payments.length, data: payments },
+    professionals: { count: professionals.length, data: professionals },
+    users: { count: users.length, data: users.map(u => ({ id: u.id, username: u.username, role: u.role, email: u.email })) },
+    audit_logs: { count: auditLogs.length, data: auditLogs },
+  })
 })
 
 // Mount router on all path variations for seamless Vercel / Express compatibility

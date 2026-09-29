@@ -1,0 +1,167 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "System user account with role-based access",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "username": { "type": "string" },
+        "fullName": { "type": "string" },
+        "role": { "type": "string", "enum": ["ADMINISTRADOR", "ODONTOLOGO", "RECEPCIONISTA"] },
+        "email": { "type": "string" },
+        "password": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["username", "role"]
+    },
+    "Professional": {
+      "title": "Professional",
+      "description": "Dental professional / orthodontist",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "firstName": { "type": "string" },
+        "lastName": { "type": "string" },
+        "licenseNumber": { "type": "string" },
+        "specialty": { "type": "string" },
+        "phone": { "type": "string" },
+        "active": { "type": "boolean" }
+      },
+      "required": ["firstName", "lastName", "licenseNumber", "specialty"]
+    },
+    "Patient": {
+      "title": "Patient",
+      "description": "Dental clinic patient record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "firstName": { "type": "string" },
+        "lastName": { "type": "string" },
+        "documentType": { "type": "string", "enum": ["DNI", "PASSPORT", "OTHER"] },
+        "documentNumber": { "type": "string" },
+        "birthDate": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "address": { "type": "string" },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["firstName", "lastName", "documentNumber"]
+    },
+    "Appointment": {
+      "title": "Appointment",
+      "description": "Patient scheduled appointment",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "patientId": { "type": "string" },
+        "professionalId": { "type": "string" },
+        "scheduledStart": { "type": "string" },
+        "scheduledEnd": { "type": "string" },
+        "status": {
+          "type": "string",
+          "enum": ["PROGRAMADA", "CONFIRMADA", "CANCELADA", "ATENDIDA", "NO_ASISTIO"]
+        },
+        "reason": { "type": "string" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["patientId", "professionalId", "scheduledStart", "status"]
+    },
+    "ClinicalRecord": {
+      "title": "ClinicalRecord",
+      "description": "Patient clinical evaluation, diagnosis and orthodontic treatment notes",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "appointmentId": { "type": "string" },
+        "patientId": { "type": "string" },
+        "professionalId": { "type": "string" },
+        "attentionDate": { "type": "string" },
+        "chiefComplaint": { "type": "string" },
+        "diagnosis": { "type": "string" },
+        "treatmentPlan": { "type": "string" },
+        "clinicalNotes": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["patientId", "professionalId", "attentionDate", "chiefComplaint"]
+    },
+    "Payment": {
+      "title": "Payment",
+      "description": "Financial payment transaction for dental or orthodontic service",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "clinicalRecordId": { "type": "string" },
+        "patientId": { "type": "string" },
+        "amount": { "type": "number" },
+        "currency": { "type": "string" },
+        "paymentMethod": {
+          "type": "string",
+          "enum": ["EFECTIVO", "TARJETA", "TRANSFERENCIA", "YAPE", "PLIN", "OTRO"]
+        },
+        "status": {
+          "type": "string",
+          "enum": ["PENDIENTE", "PARCIAL", "PAGADO", "ANULADO"]
+        },
+        "reference": { "type": "string" },
+        "notes": { "type": "string" },
+        "paidAt": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["amount", "paymentMethod", "status"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Security and clinical activity audit record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "action": { "type": "string" },
+        "entityName": { "type": "string" },
+        "entityId": { "type": "string" },
+        "userId": { "type": "string" },
+        "username": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "details": { "type": "string" }
+      },
+      "required": ["action", "entityName", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Collection of clinic staff and administrative user accounts"
+    },
+    "/professionals/{professionalId}": {
+      "schema": { "$ref": "#/entities/Professional" },
+      "description": "Registered dentists and orthodontic specialists"
+    },
+    "/patients/{patientId}": {
+      "schema": { "$ref": "#/entities/Patient" },
+      "description": "Dental patient records"
+    },
+    "/appointments/{appointmentId}": {
+      "schema": { "$ref": "#/entities/Appointment" },
+      "description": "Appointments scheduled across dental chairs"
+    },
+    "/clinical_records/{recordId}": {
+      "schema": { "$ref": "#/entities/ClinicalRecord" },
+      "description": "Clinical histories and orthodontic evolution records"
+    },
+    "/payments/{paymentId}": {
+      "schema": { "$ref": "#/entities/Payment" },
+      "description": "Payment records for treatment fees and consultations"
+    },
+    "/audit_logs/{logId}": {
+      "schema": { "$ref": "#/entities/AuditLog" },
+      "description": "System audit trail"
+    }
+  }
+}

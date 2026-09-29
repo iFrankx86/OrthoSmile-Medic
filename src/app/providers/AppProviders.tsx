@@ -36,10 +36,16 @@ const defaultToastContext: ToastContextType = {
   removeToast: () => {},
 }
 
+import { useAuth as useRealAuth } from '../../context/AuthContext'
+
 const AuthContext = createContext<AuthContextType>(defaultAuthContext)
 const ToastContext = createContext<ToastContextType>(defaultToastContext)
 
 export function useAuth() {
+  try {
+    const real = useRealAuth()
+    if (real) return real as any
+  } catch (e) {}
   const context = useContext(AuthContext)
   return context || defaultAuthContext
 }
@@ -52,17 +58,56 @@ export function useToast() {
 export const AuthProvider = AppProviders
 export const ToastProvider = AppProviders
 
+// Safe multi-tier session storage
+let memoryUser: User | null = null
+
+function getStoredUser(): User | null {
+  if (memoryUser) return memoryUser
+  try {
+    const fromLocal = localStorage.getItem('ortho_user')
+    if (fromLocal) {
+      const parsed = JSON.parse(fromLocal)
+      memoryUser = parsed
+      return parsed
+    }
+  } catch (e) {
+    // localStorage may be restricted in sandbox iframe
+  }
+  try {
+    const fromSession = sessionStorage.getItem('ortho_user')
+    if (fromSession) {
+      const parsed = JSON.parse(fromSession)
+      memoryUser = parsed
+      return parsed
+    }
+  } catch (e) {
+    // sessionStorage fallback
+  }
+  return null
+}
+
+function saveStoredUser(usr: User | null) {
+  memoryUser = usr
+  if (!usr) {
+    try { localStorage.removeItem('ortho_user') } catch (e) {}
+    try { localStorage.removeItem('ortho_token') } catch (e) {}
+    try { sessionStorage.removeItem('ortho_user') } catch (e) {}
+    try { sessionStorage.removeItem('ortho_token') } catch (e) {}
+    return
+  }
+  try {
+    localStorage.setItem('ortho_user', JSON.stringify(usr))
+    if (usr.token) localStorage.setItem('ortho_token', usr.token)
+  } catch (e) {}
+  try {
+    sessionStorage.setItem('ortho_user', JSON.stringify(usr))
+    if (usr.token) sessionStorage.setItem('ortho_token', usr.token)
+  } catch (e) {}
+}
+
 export function AppProviders({ children }: { children: React.ReactNode }) {
   // Auth state
-  const [user, setUser] = useState<User | null>(() => {
-    try {
-      const savedUser = localStorage.getItem('ortho_user')
-      if (savedUser) return JSON.parse(savedUser)
-    } catch {
-      // ignore
-    }
-    return null
-  })
+  const [user, setUser] = useState<User | null>(() => getStoredUser())
 
   // Toasts state
   const [toasts, setToasts] = useState<Toast[]>([])
@@ -79,17 +124,14 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
     setToasts((prev) => prev.filter((t) => t.id !== id))
   }
 
-  const login = async (username: string, password: string) => {
+  const login = async (username: string, password: string): Promise<void> => {
     try {
       const loggedUser = await api.login(username, password)
+      saveStoredUser(loggedUser)
       setUser(loggedUser)
-      if (loggedUser.token) {
-        localStorage.setItem('ortho_token', loggedUser.token)
-      }
-      localStorage.setItem('ortho_user', JSON.stringify(loggedUser))
-      showToast(`¡Bienvenido de vuelta, ${loggedUser.username}!`, 'success')
+      showToast(`¡Bienvenido de vuelta, ${loggedUser.fullName || loggedUser.username}!`, 'success')
     } catch (err: any) {
-      const msg = err.response?.data?.message || 'Error al iniciar sesión'
+      const msg = err?.message || 'Error al iniciar sesión'
       showToast(msg, 'error')
       throw err
     }
@@ -97,9 +139,8 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
 
   const logout = () => {
     api.logout()
+    saveStoredUser(null)
     setUser(null)
-    localStorage.removeItem('ortho_token')
-    localStorage.removeItem('ortho_user')
     showToast('Sesión cerrada correctamente', 'info')
   }
 

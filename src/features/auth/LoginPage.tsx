@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Smile, Lock, User as UserIcon, AlertCircle, Eye, EyeOff, CheckCircle2 } from 'lucide-react'
-import { useAuth } from '../../app/providers/AppProviders'
+import { useAuth } from '../../context/AuthContext'
 
 export function LoginPage() {
   const { login, user, isAuthenticated } = useAuth()
@@ -23,10 +23,10 @@ export function LoginPage() {
     setError(null)
     setLoading(true)
     try {
-      await login(username.trim(), password)
-      window.location.href = '/'
+      await login(username.trim(), password.trim())
+      navigate('/', { replace: true })
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Error al iniciar sesión. Verifique sus credenciales.')
+      setError(err?.message || 'Error al iniciar sesión. Verifique sus credenciales.')
       setLoading(false)
     }
   }
