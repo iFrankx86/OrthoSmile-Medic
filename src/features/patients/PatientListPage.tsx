@@ -14,6 +14,7 @@ import {
   User,
   ChevronRight,
   ExternalLink,
+  RefreshCw,
 } from 'lucide-react'
 
 export const PatientListPage: React.FC = () => {
@@ -21,22 +22,34 @@ export const PatientListPage: React.FC = () => {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
 
-  const fetchPatients = async () => {
+  const fetchPatients = async (silent = false) => {
     try {
-      setLoading(true)
-      const queryParam = searchTerm ? `?q=${encodeURIComponent(searchTerm)}` : ''
-      const res = await fetch(`/api/v1/patients${queryParam}`)
+      if (!silent) setLoading(true)
+      const queryParam = searchTerm ? `q=${encodeURIComponent(searchTerm)}&` : ''
+      const res = await fetch(`/api/v1/patients?${queryParam}_t=${Date.now()}`, {
+        cache: 'no-store',
+      })
       const data = await res.json()
       setPatients(Array.isArray(data) ? data : [])
     } catch (e) {
       console.error(e)
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }
 
   useEffect(() => {
     fetchPatients()
+
+    const handleFocus = () => fetchPatients(true)
+    const handlePatientCreated = () => fetchPatients(true)
+
+    window.addEventListener('focus', handleFocus)
+    window.addEventListener('orthosmile:patient-created', handlePatientCreated)
+    return () => {
+      window.removeEventListener('focus', handleFocus)
+      window.removeEventListener('orthosmile:patient-created', handlePatientCreated)
+    }
   }, [searchTerm])
 
   return (
@@ -52,13 +65,25 @@ export const PatientListPage: React.FC = () => {
           </p>
         </div>
 
-        <Link
-          to="/pacientes/nuevo"
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 active:scale-[0.98] text-white text-sm font-semibold shadow-xs transition-all min-h-[44px]"
-        >
-          <UserPlus size={18} />
-          <span>Nuevo Paciente</span>
-        </Link>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => fetchPatients()}
+            className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl border border-slate-200/80 bg-white hover:bg-slate-50 text-slate-700 text-sm font-semibold shadow-2xs transition-colors min-h-[44px]"
+            title="Recargar lista de pacientes"
+          >
+            <RefreshCw size={15} className={loading ? 'animate-spin text-sky-600' : ''} />
+            <span className="hidden sm:inline">Actualizar</span>
+          </button>
+
+          <Link
+            to="/pacientes/nuevo"
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 active:scale-[0.98] text-white text-sm font-semibold shadow-xs transition-all min-h-[44px]"
+          >
+            <UserPlus size={18} />
+            <span>Nuevo Paciente</span>
+          </Link>
+        </div>
       </div>
 
       {/* Live Search Input (Thumb reach) */}
@@ -174,13 +199,21 @@ export const PatientListPage: React.FC = () => {
                 </div>
 
                 {/* Quick Clinical Touch Actions (Large Hitboxes) */}
-                <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-100">
+                <div className="grid grid-cols-4 gap-1.5 pt-2 border-t border-slate-100">
+                  <Link
+                    to={`/citas?patientId=${p.id}&action=new`}
+                    className="flex flex-col items-center justify-center p-2 rounded-xl bg-emerald-50 text-emerald-700 text-center min-h-[44px] hover:bg-emerald-100 active:scale-95 transition-all"
+                    title="Agendar Cita Médica"
+                  >
+                    <Calendar size={16} />
+                    <span className="text-[10px] font-semibold mt-0.5">Citar</span>
+                  </Link>
                   <Link
                     to={`/odontograma?patientId=${p.id}`}
                     className="flex flex-col items-center justify-center p-2 rounded-xl bg-sky-50 text-sky-700 text-center min-h-[44px] hover:bg-sky-100 active:scale-95 transition-all"
                   >
                     <Smile size={16} />
-                    <span className="text-[10px] font-semibold mt-0.5">Odontograma</span>
+                    <span className="text-[10px] font-semibold mt-0.5">Odontogr.</span>
                   </Link>
                   <Link
                     to={`/historias?patientId=${p.id}`}
@@ -248,6 +281,13 @@ export const PatientListPage: React.FC = () => {
                       </td>
                       <td className="py-3 px-4 text-right">
                         <div className="inline-flex items-center gap-1">
+                          <Link
+                            to={`/citas?patientId=${p.id}&action=new`}
+                            className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 transition-colors"
+                            title="Agendar Cita Médica"
+                          >
+                            <Calendar size={18} />
+                          </Link>
                           <Link
                             to={`/odontograma?patientId=${p.id}`}
                             className="p-1.5 rounded-lg text-sky-600 hover:bg-sky-50 transition-colors"

@@ -1,5 +1,7 @@
 import express, { Request, Response } from 'express'
 import cors from 'cors'
+import path from 'path'
+import fs from 'fs'
 import { query, isCloudDatabaseConnected } from '../db/postgres.js'
 import {
   checkLoginRateLimit,
@@ -314,6 +316,15 @@ app.use(express.json({ limit: '1mb' }))
 
 export const apiRouter = express.Router()
 
+// Prevent all HTTP client/browser/proxy caching on API endpoints so updates reflect immediately
+apiRouter.use((_req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0')
+  res.setHeader('Pragma', 'no-cache')
+  res.setHeader('Expires', '0')
+  res.setHeader('Surrogate-Control', 'no-store')
+  next()
+})
+
 // Health check
 apiRouter.get('/health', (_req: Request, res: Response) => {
   res.json({
@@ -462,7 +473,7 @@ apiRouter.get('/patients', async (req: Request, res: Response) => {
         queryStr += ` WHERE LOWER(first_name) LIKE $1 OR LOWER(last_name) LIKE $1 OR document_number LIKE $1`
         params.push(`%${q}%`)
       }
-      queryStr += ` ORDER BY id ASC`
+      queryStr += ` ORDER BY id DESC`
       const rows = await query<any>(queryStr, params)
       return res.json(rows)
     } catch (err) {
@@ -470,8 +481,10 @@ apiRouter.get('/patients', async (req: Request, res: Response) => {
     }
   }
 
+  // In-memory: sorted with newest patients first
+  const sorted = [...patients].sort((a, b) => b.id - a.id)
   if (q) {
-    const filtered = patients.filter(
+    const filtered = sorted.filter(
       (p) =>
         p.firstName.toLowerCase().includes(q) ||
         p.lastName.toLowerCase().includes(q) ||
@@ -479,7 +492,7 @@ apiRouter.get('/patients', async (req: Request, res: Response) => {
     )
     return res.json(filtered)
   }
-  return res.json(patients)
+  return res.json(sorted)
 })
 
 apiRouter.post('/patients', async (req: Request, res: Response) => {
@@ -507,6 +520,8 @@ apiRouter.post('/patients', async (req: Request, res: Response) => {
         [cleanFirstName, cleanLastName, cleanDocType, cleanDocNum, body.birthDate || '2000-01-01', cleanEmail, cleanPhone, cleanAddress, body.active !== false]
       )
       addAudit('CREATE', 'PATIENT', rows[0].id, 'admin', `Paciente ${cleanFirstName} ${cleanLastName} creado`)
+      // Also update in-memory fallback list
+      patients.unshift(rows[0])
       return res.status(201).json(rows[0])
     } catch (err) {
       console.error('[Supabase Patient Insert Error]:', err)
@@ -527,7 +542,7 @@ apiRouter.post('/patients', async (req: Request, res: Response) => {
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   }
-  patients.push(newPatient)
+  patients.unshift(newPatient)
   addAudit('CREATE', 'PATIENT', newPatient.id, 'admin', `Paciente ${newPatient.firstName} ${newPatient.lastName} creado`)
   return res.status(201).json(newPatient)
 })
@@ -768,6 +783,28 @@ apiRouter.get('/database/tables', async (_req: Request, res: Response) => {
     users: { count: users.length, data: users.map(u => ({ id: u.id, username: u.username, role: u.role, email: u.email })) },
     audit_logs: { count: auditLogs.length, data: auditLogs },
   })
+})
+
+// 9. Technical Report Word (.docx) Download Endpoint
+apiRouter.get('/download-technical-report', async (_req: Request, res: Response) => {
+  try {
+    const filePath = path.join(process.cwd(), 'public', 'Informe_Tecnico_OrthoSmile_Medic.docx')
+    if (fs.existsSync(filePath)) {
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+      res.setHeader('Content-Disposition', 'attachment; filename="Informe_Tecnico_OrthoSmile_Medic.docx"')
+      return res.sendFile(filePath)
+    }
+
+    // Dynamic fallback generation
+    const { generateTechnicalReportDocx } = await import('./generateDocxReport')
+    const buffer = await generateTechnicalReportDocx()
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+    res.setHeader('Content-Disposition', 'attachment; filename="Informe_Tecnico_OrthoSmile_Medic.docx"')
+    return res.send(buffer)
+  } catch (err) {
+    console.error('[Report Download Error]:', err)
+    return res.status(500).json({ error: 'No se pudo generar el informe técnico.' })
+  }
 })
 
 // Mount router on all path variations for seamless Vercel / Express compatibility

@@ -1,6 +1,7 @@
 import React from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
-import { LogOut, Menu, Activity, Shield, Stethoscope, UserCheck } from 'lucide-react'
+import { LogOut, Menu, Activity, Shield, Stethoscope, UserCheck, FileText } from 'lucide-react'
 
 interface HeaderProps {
   onToggleMobileSidebar?: () => void
@@ -87,8 +88,19 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileSidebar }) => {
           <span>Lima, Perú</span>
         </div>
 
-        {/* Right: Active Profile & Signout */}
-        <div className="flex items-center gap-3">
+        {/* Right: Active Profile, Technical Report (Solo Admin) & Signout */}
+        <div className="flex items-center gap-2 sm:gap-3">
+          {user?.role === 'ADMINISTRADOR' && (
+            <Link
+              to="/informe"
+              className="flex items-center gap-1.5 text-xs font-semibold text-sky-700 bg-sky-50 hover:bg-sky-100 border border-sky-200/80 px-2.5 py-1.5 rounded-lg transition-all shadow-2xs"
+              title="Ver y descargar Informe Técnico Oficial (Solo Administrador)"
+            >
+              <FileText size={15} className="text-sky-600" />
+              <span className="hidden sm:inline">Informe Técnico</span>
+            </Link>
+          )}
+
           <div className="flex items-center gap-2.5 pl-2 sm:border-l sm:border-slate-200">
             <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 font-semibold text-xs shrink-0">
               {user?.username ? user.username.slice(0, 2).toUpperCase() : 'OS'}

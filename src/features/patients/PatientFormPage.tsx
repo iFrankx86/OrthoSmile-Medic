@@ -5,6 +5,7 @@ import { ArrowLeft, Save, User, Phone, Mail, MapPin, Calendar, AlertCircle, Chec
 export const PatientFormPage: React.FC = () => {
   const navigate = useNavigate()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitAction, setSubmitAction] = useState<'save' | 'schedule'>('save')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [formData, setFormData] = useState({
     firstName: '',
@@ -36,7 +37,15 @@ export const PatientFormPage: React.FC = () => {
         body: JSON.stringify(formData),
       })
       if (res.ok) {
-        navigate('/pacientes')
+        const created = await res.json().catch(() => null)
+        // Notify other open components immediately
+        window.dispatchEvent(new CustomEvent('orthosmile:patient-created', { detail: created }))
+
+        if (submitAction === 'schedule' && created?.id) {
+          navigate(`/citas?patientId=${created.id}&action=new`)
+        } else {
+          navigate('/pacientes')
+        }
       } else {
         const err = await res.json().catch(() => ({}))
         setErrorMsg(err.message || 'Error al guardar el paciente. Verifique los datos ingresados.')
@@ -224,12 +233,25 @@ export const PatientFormPage: React.FC = () => {
             >
               Cancelar
             </button>
+
             <button
               type="submit"
+              onClick={() => setSubmitAction('schedule')}
+              disabled={isSubmitting}
+              className="w-full sm:w-auto px-5 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white text-sm font-semibold shadow-xs flex items-center justify-center gap-2 min-h-[46px] disabled:opacity-60"
+              title="Guardar paciente y abrir la pantalla de citas inmediatamente"
+            >
+              <Calendar size={18} />
+              <span>Guardar y Agendar Cita</span>
+            </button>
+
+            <button
+              type="submit"
+              onClick={() => setSubmitAction('save')}
               disabled={isSubmitting}
               className="w-full sm:w-auto px-6 py-3 rounded-xl bg-sky-600 hover:bg-sky-700 active:scale-[0.98] text-white text-sm font-semibold shadow-xs flex items-center justify-center gap-2 min-h-[46px] disabled:opacity-60"
             >
-              {isSubmitting ? (
+              {isSubmitting && submitAction === 'save' ? (
                 <>
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   <span>Guardando en Firebase...</span>

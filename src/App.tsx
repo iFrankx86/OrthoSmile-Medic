@@ -11,6 +11,7 @@ import { OdontogramPage } from './features/clinical/OdontogramPage'
 import { PaymentListPage } from './features/payments/PaymentListPage'
 import { ProfessionalListPage } from './features/professionals/ProfessionalListPage'
 import { DatabaseViewerPage } from './features/database/DatabaseViewerPage'
+import { TechnicalReportPage } from './features/report/TechnicalReportPage'
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode; allowedRoles?: string[] }> = ({
   children,
@@ -54,6 +55,14 @@ export default function App() {
             <Route path="pagos" element={<PaymentListPage />} />
             <Route path="profesionales" element={<ProfessionalListPage />} />
             <Route path="database" element={<DatabaseViewerPage />} />
+            <Route
+              path="informe"
+              element={
+                <ProtectedRoute allowedRoles={['ADMINISTRADOR']}>
+                  <TechnicalReportPage />
+                </ProtectedRoute>
+              }
+            />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

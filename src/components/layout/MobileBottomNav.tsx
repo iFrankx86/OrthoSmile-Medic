@@ -15,6 +15,7 @@ import {
   ChevronRight,
   Shield,
   Stethoscope,
+  FileDown,
 } from 'lucide-react'
 
 export const MobileBottomNav: React.FC = () => {
@@ -177,6 +178,31 @@ export const MobileBottomNav: React.FC = () => {
                   </button>
                 )
               })}
+
+              {/* Technical Report Action (Solo Administrador) */}
+              {hasRole(['ADMINISTRADOR']) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMoreMenuOpen(false)
+                    navigate('/informe')
+                  }}
+                  className="w-full flex items-center justify-between p-3 rounded-2xl bg-sky-50/80 hover:bg-sky-100 active:bg-sky-200 border border-sky-200 text-left transition-colors min-h-[48px]"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-white border border-sky-300 flex items-center justify-center text-sky-700 shadow-xs">
+                      <FileDown size={18} />
+                    </div>
+                    <div>
+                      <div className="font-semibold text-sm text-sky-900">Informe Técnico Oficial</div>
+                      <div className="text-xs text-sky-600">Ver en pantalla y descargar Word (.docx)</div>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-sky-700 bg-white px-2 py-0.5 rounded-full border border-sky-200">
+                    DOCX
+                  </span>
+                </button>
+              )}
             </div>
 
             {/* Logout button */}

@@ -11,6 +11,7 @@ import {
   Smile,
   X,
   ChevronRight,
+  FileDown,
 } from 'lucide-react'
 
 interface SidebarProps {
@@ -69,6 +70,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onCloseMobile }) =
       icon: Database,
       label: 'Base de Datos',
       badge: 'Firebase',
+      roles: ['ADMINISTRADOR'],
+    },
+    {
+      to: '/informe',
+      icon: FileDown,
+      label: 'Informe Técnico',
+      badge: 'Word .docx',
       roles: ['ADMINISTRADOR'],
     },
   ]
@@ -149,6 +157,27 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onCloseMobile }) =
             })}
           </nav>
         </div>
+
+        {/* Technical Report View & Download Card in Sidebar (Solo Administrador) */}
+        {hasRole(['ADMINISTRADOR']) && (
+          <div className="px-3">
+            <NavLink
+              to="/informe"
+              className="flex items-center justify-between p-3 rounded-xl bg-sky-50/80 hover:bg-sky-100 border border-sky-200/80 text-xs transition-colors group"
+            >
+              <div className="flex items-center gap-2">
+                <FileDown size={16} className="text-sky-600 group-hover:scale-110 transition-transform" />
+                <div>
+                  <div className="font-bold text-sky-900 leading-tight">Informe Técnico</div>
+                  <div className="text-[10px] text-sky-600">Ver y descargar Word (.docx)</div>
+                </div>
+              </div>
+              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-white text-sky-700 border border-sky-200">
+                DOCX
+              </span>
+            </NavLink>
+          </div>
+        )}
 
         {/* Quick System Status Card in Sidebar */}
         <div className="px-3">

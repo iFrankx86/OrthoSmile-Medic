@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
+import { useSearchParams, Link } from 'react-router-dom'
 import { Appointment, Patient, Professional } from '../../types/models'
 import {
   Calendar as CalendarIcon,
@@ -12,9 +13,13 @@ import {
   X,
   Stethoscope,
   Filter,
+  RefreshCw,
+  Search,
+  UserPlus,
 } from 'lucide-react'
 
 export const AppointmentListPage: React.FC = () => {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [patients, setPatients] = useState<Patient[]>([])
   const [professionals, setProfessionals] = useState<Professional[]>([])
@@ -22,6 +27,8 @@ export const AppointmentListPage: React.FC = () => {
   const [showModal, setShowModal] = useState(false)
   const [statusFilter, setStatusFilter] = useState<string>('TODAS')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [patientSearch, setPatientSearch] = useState('')
+  const [refreshingPatients, setRefreshingPatients] = useState(false)
 
   const [newAppt, setNewAppt] = useState({
     patientId: '',
@@ -31,13 +38,14 @@ export const AppointmentListPage: React.FC = () => {
     notes: '',
   })
 
-  const loadData = async () => {
+  const loadData = async (silent = false) => {
     try {
-      setLoading(true)
+      if (!silent) setLoading(true)
+      const timestamp = Date.now()
       const [apptsRes, patsRes, profsRes] = await Promise.all([
-        fetch('/api/v1/appointments'),
-        fetch('/api/v1/patients'),
-        fetch('/api/v1/professionals'),
+        fetch(`/api/v1/appointments?_t=${timestamp}`, { cache: 'no-store' }),
+        fetch(`/api/v1/patients?_t=${timestamp}`, { cache: 'no-store' }),
+        fetch(`/api/v1/professionals?_t=${timestamp}`, { cache: 'no-store' }),
       ])
       const [apptsData, patsData, profsData] = await Promise.all([
         apptsRes.json(),
@@ -50,13 +58,59 @@ export const AppointmentListPage: React.FC = () => {
     } catch (e) {
       console.error(e)
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }
 
   useEffect(() => {
     loadData()
+
+    const handleFocus = () => loadData(true)
+    const handlePatientCreated = (e: any) => {
+      loadData(true)
+      if (e?.detail?.id) {
+        setNewAppt((prev) => ({ ...prev, patientId: String(e.detail.id) }))
+      }
+    }
+
+    window.addEventListener('focus', handleFocus)
+    window.addEventListener('orthosmile:patient-created', handlePatientCreated)
+    return () => {
+      window.removeEventListener('focus', handleFocus)
+      window.removeEventListener('orthosmile:patient-created', handlePatientCreated)
+    }
   }, [])
+
+  useEffect(() => {
+    const patientIdParam = searchParams.get('patientId')
+    const actionParam = searchParams.get('action')
+    if (patientIdParam || actionParam === 'new') {
+      setShowModal(true)
+      if (patientIdParam) {
+        setNewAppt((prev) => ({ ...prev, patientId: String(patientIdParam) }))
+      }
+      loadData(true)
+    }
+  }, [searchParams])
+
+  const filteredPatients = useMemo(() => {
+    if (!patientSearch.trim()) return patients
+    const q = patientSearch.toLowerCase().trim()
+    return patients.filter(
+      (p) =>
+        p.firstName.toLowerCase().includes(q) ||
+        p.lastName.toLowerCase().includes(q) ||
+        p.documentNumber.includes(q) ||
+        (p.phone && p.phone.includes(q))
+    )
+  }, [patients, patientSearch])
+
+  const handleOpenModal = () => {
+    setErrorMsg(null)
+    setPatientSearch('')
+    setShowModal(true)
+    loadData(true)
+  }
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -153,10 +207,7 @@ export const AppointmentListPage: React.FC = () => {
         </div>
 
         <button
-          onClick={() => {
-            setErrorMsg(null)
-            setShowModal(true)
-          }}
+          onClick={handleOpenModal}
           className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 active:scale-[0.98] text-white text-sm font-semibold shadow-xs transition-all min-h-[44px]"
         >
           <Plus size={18} />
@@ -347,19 +398,73 @@ export const AppointmentListPage: React.FC = () => {
 
             <form onSubmit={handleCreate} className="space-y-3.5">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Paciente <span className="text-rose-500">*</span>
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-slate-700">
+                    Paciente <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setRefreshingPatients(true)
+                        await loadData(true)
+                        setRefreshingPatients(false)
+                      }}
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-sky-600 hover:text-sky-800 transition-colors"
+                      title="Refrescar lista de pacientes al instante"
+                    >
+                      <RefreshCw size={11} className={refreshingPatients ? 'animate-spin' : ''} />
+                      <span>{refreshingPatients ? 'Actualizando...' : 'Actualizar lista'}</span>
+                    </button>
+                    <span className="text-slate-300">·</span>
+                    <Link
+                      to="/pacientes/nuevo"
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 hover:text-emerald-800 transition-colors"
+                      title="Registrar nuevo paciente en la clínica"
+                    >
+                      <UserPlus size={11} />
+                      <span>+ Nuevo</span>
+                    </Link>
+                  </div>
+                </div>
+
+                {/* Live filter input */}
+                <div className="relative mb-2">
+                  <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-slate-400">
+                    <Search size={13} />
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Filtrar por nombre o DNI..."
+                    className="w-full pl-8 pr-7 py-1.5 rounded-lg border border-slate-200 text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-sky-500"
+                    value={patientSearch}
+                    onChange={(e) => setPatientSearch(e.target.value)}
+                  />
+                  {patientSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setPatientSearch('')}
+                      className="absolute inset-y-0 right-0 pr-2 flex items-center text-slate-400 hover:text-slate-600"
+                    >
+                      <X size={12} />
+                    </button>
+                  )}
+                </div>
+
                 <select
                   required
                   className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm bg-white min-h-[44px]"
                   value={newAppt.patientId}
                   onChange={(e) => setNewAppt({ ...newAppt, patientId: e.target.value })}
                 >
-                  <option value="">Seleccione un paciente...</option>
-                  {patients.map((p) => (
+                  <option value="">
+                    {filteredPatients.length === 0
+                      ? 'No hay pacientes que coincidan'
+                      : `Seleccione un paciente (${filteredPatients.length} disponibles)...`}
+                  </option>
+                  {filteredPatients.map((p) => (
                     <option key={p.id} value={p.id}>
-                      {p.firstName} {p.lastName} - DNI: {p.documentNumber}
+                      {p.firstName} {p.lastName} — {p.documentType}: {p.documentNumber} {p.phone ? `· Tel: ${p.phone}` : ''}
                     </option>
                   ))}
                 </select>
