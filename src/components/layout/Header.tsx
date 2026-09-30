@@ -21,8 +21,8 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileSidebar }) => {
         }
       case 'ODONTOLOGO':
         return {
-          title: 'Dr. Gustavo Chávez',
-          tag: 'Ortodoncista Titular',
+          title: 'Dr. Manuel Gustavo Chavez Sevillano',
+          tag: 'Orthodontist, MSc, PhD',
           color: 'bg-sky-50 text-sky-700 border-sky-200',
           icon: Stethoscope,
         }

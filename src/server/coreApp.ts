@@ -3,6 +3,8 @@ import cors from 'cors'
 import path from 'path'
 import fs from 'fs'
 import { query, isCloudDatabaseConnected } from '../db/postgres.js'
+import { db } from '../lib/firebase.js'
+import { collection, getDocs, doc, setDoc, updateDoc } from 'firebase/firestore'
 import {
   checkLoginRateLimit,
   recordLoginFailure,
@@ -106,13 +108,12 @@ const formatISO = (d: Date) => d.toISOString()
 
 export const users: User[] = [
   { id: 1, username: 'admin', password: 'admin123', fullName: 'Administrador', role: 'ADMINISTRADOR', email: 'admin@orthosmile.com' },
-  { id: 2, username: 'dr.chavez', password: 'chavez123', fullName: 'Dr. Gustavo Chávez', role: 'ODONTOLOGO', email: 'gustavo.chavez@orthosmile.com' },
+  { id: 2, username: 'dr.chavez', password: 'chavez123', fullName: 'Dr. Manuel Gustavo Chavez Sevillano (Orthodontist, MSc, PhD)', role: 'ODONTOLOGO', email: 'gustavo.chavez@orthosmile.com' },
   { id: 3, username: 'mabel', password: 'mabel123', fullName: 'Mabel (Recepción)', role: 'RECEPCIONISTA', email: 'mabel@orthosmile.com' },
 ]
 
 export const professionals: Professional[] = [
-  { id: 1, userId: 2, firstName: 'Gustavo', lastName: 'Chávez', licenseNumber: 'COP-18452', specialty: 'Ortodoncia y Cirugía Oral', phone: '+51 987 654 321', active: true },
-  { id: 2, firstName: 'Elena', lastName: 'Ríos Mendoza', licenseNumber: 'COP-22104', specialty: 'Endodoncia y Estética Dental', phone: '+51 912 345 678', active: true },
+  { id: 1, userId: 2, firstName: 'Manuel Gustavo', lastName: 'Chavez Sevillano', licenseNumber: 'COP-18452', specialty: 'Orthodontist, MSc, PhD', phone: '+51 987 654 321', active: true },
 ]
 
 export const patients: Patient[] = [
@@ -400,6 +401,30 @@ apiRouter.post('/auth/logout', (_req: Request, res: Response) => {
 
 // 2. Professionals Endpoints
 apiRouter.get('/professionals', async (_req: Request, res: Response) => {
+  // 1. Primary: Google Cloud Firebase Firestore
+  try {
+    const snap = await getDocs(collection(db, 'professionals'))
+    const list: any[] = []
+    snap.forEach((d) => {
+      const data = d.data()
+      list.push({
+        id: Number(d.id) || Number(data.id) || d.id,
+        userId: Number(data.userId) || 2,
+        firstName: data.firstName || '',
+        lastName: data.lastName || '',
+        licenseNumber: data.licenseNumber || 'COP-18452',
+        specialty: data.specialty || 'Orthodontist, MSc, PhD',
+        phone: data.phone || '+51 987 654 321',
+        active: data.active !== false,
+      })
+    })
+    if (list.length > 0) {
+      return res.json(list)
+    }
+  } catch (err) {
+    console.warn('[Firestore Server Query Professionals Warning]:', err)
+  }
+
   if (isCloudDatabaseConnected()) {
     try {
       const rows = await query<any>(
@@ -461,6 +486,46 @@ apiRouter.post('/professionals', async (req: Request, res: Response) => {
 apiRouter.get('/patients', async (req: Request, res: Response) => {
   const q = req.query.q ? String(req.query.q).toLowerCase().trim() : ''
 
+  // 1. Primary: Google Cloud Firebase Firestore
+  try {
+    const snap = await getDocs(collection(db, 'patients'))
+    const list: any[] = []
+    snap.forEach((d) => {
+      const data = d.data()
+      list.push({
+        id: Number(d.id) || Number(data.id) || d.id,
+        firstName: data.firstName || '',
+        lastName: data.lastName || '',
+        documentType: data.documentType || 'DNI',
+        documentNumber: data.documentNumber || '',
+        birthDate: data.birthDate || '2000-01-01',
+        email: data.email,
+        phone: data.phone,
+        address: data.address,
+        active: data.active !== false,
+        createdAt: data.createdAt || new Date().toISOString(),
+        updatedAt: data.updatedAt || new Date().toISOString(),
+      })
+    })
+
+    if (list.length > 0) {
+      list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime() || Number(b.id) - Number(a.id))
+      if (q) {
+        const filtered = list.filter(
+          (p) =>
+            (p.firstName || '').toLowerCase().includes(q) ||
+            (p.lastName || '').toLowerCase().includes(q) ||
+            (p.documentNumber || '').includes(q)
+        )
+        return res.json(filtered)
+      }
+      return res.json(list)
+    }
+  } catch (err) {
+    console.warn('[Firestore Server Query Warning]:', err)
+  }
+
+  // 2. Fallback: PostgreSQL
   if (isCloudDatabaseConnected()) {
     try {
       let queryStr = `SELECT id, first_name as "firstName", last_name as "lastName",
@@ -481,7 +546,7 @@ apiRouter.get('/patients', async (req: Request, res: Response) => {
     }
   }
 
-  // In-memory: sorted with newest patients first
+  // 3. Fallback: In-memory
   const sorted = [...patients].sort((a, b) => b.id - a.id)
   if (q) {
     const filtered = sorted.filter(
@@ -508,28 +573,14 @@ apiRouter.post('/patients', async (req: Request, res: Response) => {
   const cleanEmail = sanitizeString(body.email || '', 100)
   const cleanAddress = sanitizeString(body.address || '', 200)
 
-  if (isCloudDatabaseConnected()) {
-    try {
-      const rows = await query<any>(
-        `INSERT INTO patients (first_name, last_name, document_type, document_number, birth_date, email, phone, address, active)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-         RETURNING id, first_name as "firstName", last_name as "lastName",
-                   document_type as "documentType", document_number as "documentNumber",
-                   birth_date as "birthDate", email, phone, address, active,
-                   created_at as "createdAt", updated_at as "updatedAt"`,
-        [cleanFirstName, cleanLastName, cleanDocType, cleanDocNum, body.birthDate || '2000-01-01', cleanEmail, cleanPhone, cleanAddress, body.active !== false]
-      )
-      addAudit('CREATE', 'PATIENT', rows[0].id, 'admin', `Paciente ${cleanFirstName} ${cleanLastName} creado`)
-      // Also update in-memory fallback list
-      patients.unshift(rows[0])
-      return res.status(201).json(rows[0])
-    } catch (err) {
-      console.error('[Supabase Patient Insert Error]:', err)
-    }
+  // Validate 8-digit DNI
+  if (cleanDocType === 'DNI' && !/^\d{8}$/.test(cleanDocNum)) {
+    return res.status(400).json({ message: 'El DNI debe tener exactamente 8 dígitos numéricos válidos.' })
   }
 
+  const newId = Date.now()
   const newPatient: Patient = {
-    id: patients.length ? Math.max(...patients.map((p) => p.id)) + 1 : 1,
+    id: newId,
     firstName: cleanFirstName,
     lastName: cleanLastName,
     documentType: (cleanDocType as any) || 'DNI',
@@ -542,6 +593,14 @@ apiRouter.post('/patients', async (req: Request, res: Response) => {
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   }
+
+  // Write to Firebase Firestore
+  try {
+    await setDoc(doc(db, 'patients', String(newId)), newPatient)
+  } catch (err) {
+    console.warn('[Firestore Server Insert Patient Warning]:', err)
+  }
+
   patients.unshift(newPatient)
   addAudit('CREATE', 'PATIENT', newPatient.id, 'admin', `Paciente ${newPatient.firstName} ${newPatient.lastName} creado`)
   return res.status(201).json(newPatient)
@@ -549,6 +608,34 @@ apiRouter.post('/patients', async (req: Request, res: Response) => {
 
 // 4. Appointments Endpoints
 apiRouter.get('/appointments', async (_req: Request, res: Response) => {
+  // 1. Primary: Google Cloud Firebase Firestore
+  try {
+    const snap = await getDocs(collection(db, 'appointments'))
+    const list: any[] = []
+    snap.forEach((d) => {
+      const data = d.data()
+      list.push({
+        id: Number(d.id) || Number(data.id) || d.id,
+        patientId: Number(data.patientId) || data.patientId,
+        professionalId: Number(data.professionalId) || data.professionalId,
+        scheduledStart: data.scheduledStart,
+        scheduledEnd: data.scheduledEnd,
+        status: data.status,
+        reason: data.reason,
+        notes: data.notes,
+        createdAt: data.createdAt,
+        updatedAt: data.updatedAt,
+      })
+    })
+    if (list.length > 0) {
+      list.sort((a, b) => new Date(a.scheduledStart).getTime() - new Date(b.scheduledStart).getTime())
+      return res.json(list)
+    }
+  } catch (err) {
+    console.warn('[Firestore Server Query Appointments Warning]:', err)
+  }
+
+  // 2. Fallback: PostgreSQL
   if (isCloudDatabaseConnected()) {
     try {
       const rows = await query<any>(
@@ -573,27 +660,11 @@ apiRouter.post('/appointments', async (req: Request, res: Response) => {
   const cleanReason = sanitizeString(body.reason || 'Consulta General', 200)
   const cleanNotes = sanitizeString(body.notes || '', 500)
 
-  if (isCloudDatabaseConnected()) {
-    try {
-      const rows = await query<any>(
-        `INSERT INTO appointments (patient_id, professional_id, scheduled_start, scheduled_end, status, reason, notes)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
-         RETURNING id, patient_id as "patientId", professional_id as "professionalId",
-                   scheduled_start as "scheduledStart", scheduled_end as "scheduledEnd",
-                   status, reason, notes, created_at as "createdAt", updated_at as "updatedAt"`,
-        [Number(body.patientId), Number(body.professionalId), body.scheduledStart, body.scheduledEnd || body.scheduledStart, body.status || 'PROGRAMADA', cleanReason, cleanNotes]
-      )
-      addAudit('CREATE', 'APPOINTMENT', rows[0].id, 'mabel', `Cita para paciente #${body.patientId} registrada`)
-      return res.status(201).json(rows[0])
-    } catch (err) {
-      console.error('[Supabase Appointment Insert Error]:', err)
-    }
-  }
-
+  const newId = Date.now()
   const newAppt: Appointment = {
-    id: appointments.length ? Math.max(...appointments.map((a) => a.id)) + 1 : 1,
-    patientId: Number(body.patientId),
-    professionalId: Number(body.professionalId),
+    id: newId,
+    patientId: Number(body.patientId) || body.patientId,
+    professionalId: Number(body.professionalId) || body.professionalId,
     scheduledStart: body.scheduledStart,
     scheduledEnd: body.scheduledEnd || body.scheduledStart,
     status: body.status || 'PROGRAMADA',
@@ -602,14 +673,30 @@ apiRouter.post('/appointments', async (req: Request, res: Response) => {
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   }
+
+  // Write to Firebase Firestore
+  try {
+    await setDoc(doc(db, 'appointments', String(newId)), newAppt)
+  } catch (err) {
+    console.warn('[Firestore Server Insert Appointment Warning]:', err)
+  }
+
   appointments.push(newAppt)
   addAudit('CREATE', 'APPOINTMENT', newAppt.id, 'mabel', `Cita #${newAppt.id} registrada`)
   return res.status(201).json(newAppt)
 })
 
 apiRouter.patch('/appointments/:id/status', async (req: Request, res: Response) => {
-  const id = Number(req.params.id)
+  const id = String(req.params.id)
   const { status } = req.body || {}
+
+  // 1. Update in Firebase Firestore
+  try {
+    const docRef = doc(db, 'appointments', id)
+    await updateDoc(docRef, { status, updatedAt: new Date().toISOString() })
+  } catch (err) {
+    console.warn('[Firestore Server Update Status Warning]:', err)
+  }
 
   if (isCloudDatabaseConnected()) {
     try {
@@ -618,10 +705,10 @@ apiRouter.patch('/appointments/:id/status', async (req: Request, res: Response) 
          RETURNING id, patient_id as "patientId", professional_id as "professionalId",
                    scheduled_start as "scheduledStart", scheduled_end as "scheduledEnd",
                    status, reason, notes, created_at as "createdAt", updated_at as "updatedAt"`,
-        [status, id]
+        [status, Number(id)]
       )
       if (rows.length) {
-        addAudit('STATUS_CHANGE', 'APPOINTMENT', id, 'admin', `Estado de cita cambiado a ${status}`)
+        addAudit('STATUS_CHANGE', 'APPOINTMENT', Number(id), 'admin', `Estado de cita cambiado a ${status}`)
         return res.json(rows[0])
       }
     } catch (err) {
@@ -629,12 +716,13 @@ apiRouter.patch('/appointments/:id/status', async (req: Request, res: Response) 
     }
   }
 
-  const appt = appointments.find((a) => a.id === id)
-  if (!appt) return res.status(404).json({ message: 'Cita no encontrada' })
-  appt.status = status
-  appt.updatedAt = new Date().toISOString()
-  addAudit('STATUS_CHANGE', 'APPOINTMENT', id, 'admin', `Estado de cita cambiado a ${status}`)
-  return res.json(appt)
+  const appt = appointments.find((a) => String(a.id) === id)
+  if (appt) {
+    appt.status = status
+    appt.updatedAt = new Date().toISOString()
+  }
+  addAudit('STATUS_CHANGE', 'APPOINTMENT', Number(id) || id, 'admin', `Estado de cita cambiado a ${status}`)
+  return res.json({ id, status })
 })
 
 // 5. Clinical Records Endpoints

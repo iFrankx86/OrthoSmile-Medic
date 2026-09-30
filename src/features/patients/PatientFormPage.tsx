@@ -1,6 +1,8 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Save, User, Phone, Mail, MapPin, Calendar, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { api } from '../../services/api'
+import { DocumentType } from '../../types'
 
 export const PatientFormPage: React.FC = () => {
   const navigate = useNavigate()
@@ -10,7 +12,7 @@ export const PatientFormPage: React.FC = () => {
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
-    documentType: 'DNI',
+    documentType: 'DNI' as DocumentType,
     documentNumber: '',
     birthDate: '',
     phone: '',
@@ -19,39 +21,78 @@ export const PatientFormPage: React.FC = () => {
   })
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    })
+    const { name, value } = e.target
+
+    if (name === 'documentType') {
+      let cleanedNum = formData.documentNumber
+      if (value === 'DNI') {
+        cleanedNum = cleanedNum.replace(/\D/g, '').slice(0, 8)
+      }
+      setFormData((prev) => ({
+        ...prev,
+        documentType: value as DocumentType,
+        documentNumber: cleanedNum,
+      }))
+      return
+    }
+
+    if (name === 'documentNumber' && formData.documentType === 'DNI') {
+      // Only permit numbers and max 8 digits for Peruvian DNI
+      const numericOnly = value.replace(/\D/g, '').slice(0, 8)
+      setFormData((prev) => ({
+        ...prev,
+        documentNumber: numericOnly,
+      }))
+      return
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setErrorMsg(null)
+
+    // Strict Peruvian DNI Validation
+    if (formData.documentType === 'DNI') {
+      const cleanDni = formData.documentNumber.trim()
+      if (cleanDni.length !== 8 || !/^\d{8}$/.test(cleanDni)) {
+        setErrorMsg('El DNI debe tener exactamente 8 dígitos numéricos válidos (sin letras ni caracteres especiales).')
+        return
+      }
+    }
+
+    if (!formData.firstName.trim() || !formData.lastName.trim()) {
+      setErrorMsg('Nombres y apellidos son campos requeridos.')
+      return
+    }
+
     setIsSubmitting(true)
 
     try {
-      const res = await fetch('/api/v1/patients', {
+      // 1. Direct Firebase Firestore Persistence
+      const created = await api.createPatient(formData)
+
+      // 2. Also notify backup endpoint non-blocking
+      fetch('/api/v1/patients', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
-      })
-      if (res.ok) {
-        const created = await res.json().catch(() => null)
-        // Notify other open components immediately
-        window.dispatchEvent(new CustomEvent('orthosmile:patient-created', { detail: created }))
+      }).catch(() => {})
 
-        if (submitAction === 'schedule' && created?.id) {
-          navigate(`/citas?patientId=${created.id}&action=new`)
-        } else {
-          navigate('/pacientes')
-        }
+      // 3. Notify app components immediately
+      window.dispatchEvent(new CustomEvent('orthosmile:patient-created', { detail: created }))
+
+      if (submitAction === 'schedule' && created?.id) {
+        navigate(`/citas?patientId=${created.id}&action=new`)
       } else {
-        const err = await res.json().catch(() => ({}))
-        setErrorMsg(err.message || 'Error al guardar el paciente. Verifique los datos ingresados.')
+        navigate('/pacientes')
       }
-    } catch (e: any) {
-      setErrorMsg('Error de conexión con el servidor. Intente nuevamente.')
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Error al guardar el paciente en Firebase Firestore.')
     } finally {
       setIsSubmitting(false)
     }
@@ -144,18 +185,44 @@ export const PatientFormPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Número de Documento <span className="text-rose-500">*</span>
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-slate-700">
+                    Número de Documento <span className="text-rose-500">*</span>
+                  </label>
+                  {formData.documentType === 'DNI' && (
+                    <span className="text-[11px] font-mono">
+                      {formData.documentNumber.length === 8 ? (
+                        <span className="text-emerald-600 font-semibold flex items-center gap-1">
+                          <CheckCircle2 size={12} /> 8/8 dígitos válidos
+                        </span>
+                      ) : (
+                        <span className="text-amber-600 font-medium">
+                          {formData.documentNumber.length}/8 dígitos
+                        </span>
+                      )}
+                    </span>
+                  )}
+                </div>
                 <input
                   type="text"
                   name="documentNumber"
                   required
+                  inputMode={formData.documentType === 'DNI' ? 'numeric' : 'text'}
+                  maxLength={formData.documentType === 'DNI' ? 8 : 20}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-sky-500 min-h-[44px]"
-                  placeholder="Ej: 72345678"
+                  placeholder={formData.documentType === 'DNI' ? 'Ej: 72345678 (8 dígitos numéricos)' : 'Número de documento'}
                   value={formData.documentNumber}
                   onChange={handleChange}
                 />
+                {formData.documentType === 'DNI' && (
+                  <p className="text-[11px] text-slate-500 mt-1 m-0">
+                    {formData.documentNumber.length === 8 ? (
+                      <span className="text-emerald-600 font-medium">✓ Formato de DNI peruano correcto.</span>
+                    ) : (
+                      <span>Ingrese exactamente 8 números (solo dígitos).</span>
+                    )}
+                  </p>
+                )}
               </div>
             </div>
 

@@ -19,8 +19,23 @@ import {
   PaymentStatus,
 } from '../types'
 
+// Helper to strip undefined values for Firebase Firestore compliance
+export function sanitizeForFirestore<T extends Record<string, any>>(obj: T): Record<string, any> {
+  const result: Record<string, any> = {}
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined) {
+      if (value !== null && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date)) {
+        result[key] = sanitizeForFirestore(value)
+      } else {
+        result[key] = value
+      }
+    }
+  }
+  return result
+}
+
 // Helper to add audit log to Firestore
-async function logAudit(action: string, entityName: string, entityId: string | number, username = 'sistema', details?: string) {
+async function logAudit(action: string, entityName: string, entityId: string | number, username = 'sistema', details = '') {
   try {
     const logId = String(Date.now())
     const log: AuditLog = {
@@ -30,9 +45,9 @@ async function logAudit(action: string, entityName: string, entityId: string | n
       entityId,
       username,
       timestamp: new Date().toISOString(),
-      details,
+      details: details || '',
     }
-    await setDoc(doc(db, 'audit_logs', logId), log)
+    await setDoc(doc(db, 'audit_logs', logId), sanitizeForFirestore(log))
   } catch (err) {
     console.warn('[Firebase Audit Error]:', err)
   }
@@ -99,8 +114,16 @@ const fallbackPatients: Patient[] = [
 ]
 
 const fallbackProfessionals: Professional[] = [
-  { id: 1, userId: 2, firstName: 'Gustavo', lastName: 'Chávez', licenseNumber: 'COP-18452', specialty: 'Ortodoncia y Cirugía Oral', phone: '+51 987 654 321', active: true },
-  { id: 2, firstName: 'Elena', lastName: 'Ríos Mendoza', licenseNumber: 'COP-22104', specialty: 'Endodoncia y Estética Dental', phone: '+51 912 345 678', active: true },
+  {
+    id: 1,
+    userId: 2,
+    firstName: 'Manuel Gustavo',
+    lastName: 'Chavez Sevillano',
+    licenseNumber: 'COP-18452',
+    specialty: 'Orthodontist, MSc, PhD',
+    phone: '+51 987 654 321',
+    active: true,
+  },
 ]
 
 const fallbackAppointments: Appointment[] = [
@@ -119,7 +142,7 @@ const fallbackAppointments: Appointment[] = [
   {
     id: 2,
     patientId: 2,
-    professionalId: 2,
+    professionalId: 1,
     scheduledStart: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
     scheduledEnd: new Date(Date.now() + 25 * 3600 * 1000).toISOString(),
     status: 'PROGRAMADA',
@@ -155,15 +178,19 @@ export const api = {
 
     // 1. Fast-path verification for primary clinic accounts
     if (
-      (normalizedUser === 'drchavez' || normalizedUser === 'chavez' || normalizedUser === 'gustavochavez' || cleanUser === 'dr.chavez') &&
+      (normalizedUser === 'drchavez' ||
+        normalizedUser === 'chavez' ||
+        normalizedUser === 'gustavochavez' ||
+        normalizedUser === 'manuelchavez' ||
+        cleanUser === 'dr.chavez') &&
       (cleanPass === 'chavez123' || cleanPass === 'admin123')
     ) {
-      console.log('✓ Fast-path matched: Dr. Gustavo Chávez (ODONTOLOGO)')
+      console.log('✓ Fast-path matched: Dr. Manuel Gustavo Chavez Sevillano (ODONTOLOGO)')
       const authUser: User = {
         id: 2,
         userId: 2,
         username: 'dr.chavez',
-        fullName: 'Dr. Gustavo Chávez',
+        fullName: 'Dr. Manuel Gustavo Chavez Sevillano (Orthodontist, MSc, PhD)',
         role: 'ODONTOLOGO',
         email: 'gustavo.chavez@orthosmile.com',
         token: `osm_2_${Date.now()}_chavez`,
@@ -278,7 +305,7 @@ export const api = {
       snap.forEach((d) => {
         const data = d.data()
         list.push({
-          id: Number(d.id) || Number(data.id) || list.length + 1,
+          id: Number(d.id) || Number(data.id) || (d.id as any),
           firstName: data.firstName || '',
           lastName: data.lastName || '',
           documentType: data.documentType || 'DNI',
@@ -292,6 +319,9 @@ export const api = {
           updatedAt: data.updatedAt || new Date().toISOString(),
         })
       })
+
+      // Sort newest patients first so newly created ones are at the top
+      list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime() || Number(b.id) - Number(a.id))
 
       if (queryStr) {
         const q = queryStr.toLowerCase().trim()
@@ -340,27 +370,36 @@ export const api = {
 
   createPatient: async (data: Partial<Patient>): Promise<Patient> => {
     const newId = Date.now()
+    const cleanDocNum = String(data.documentNumber || '').trim()
+    const cleanDocType = data.documentType || 'DNI'
+
+    if (cleanDocType === 'DNI' && !/^\d{8}$/.test(cleanDocNum)) {
+      throw new Error('El DNI debe tener exactamente 8 dígitos numéricos válidos.')
+    }
+
     const newPatient: Patient = {
       id: newId,
-      firstName: data.firstName || 'Nuevo',
-      lastName: data.lastName || 'Paciente',
-      documentType: data.documentType || 'DNI',
-      documentNumber: data.documentNumber || '00000000',
+      firstName: (data.firstName || 'Nuevo').trim(),
+      lastName: (data.lastName || 'Paciente').trim(),
+      documentType: cleanDocType,
+      documentNumber: cleanDocNum,
       birthDate: data.birthDate || '2000-01-01',
-      email: data.email,
-      phone: data.phone,
-      address: data.address,
+      email: data.email ? String(data.email).trim() : undefined,
+      phone: data.phone ? String(data.phone).trim() : undefined,
+      address: data.address ? String(data.address).trim() : undefined,
       active: true,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     }
 
+    fallbackPatients.unshift(newPatient)
+
     try {
-      await setDoc(doc(db, 'patients', String(newId)), newPatient)
-      await logAudit('CREATE', 'PATIENT', newId, 'admin', `Paciente ${newPatient.firstName} ${newPatient.lastName} registrado en Firebase`)
-    } catch (err) {
-      console.warn('[Firebase Create Patient Error]:', err)
-      fallbackPatients.push(newPatient)
+      await setDoc(doc(db, 'patients', String(newId)), sanitizeForFirestore(newPatient))
+      await logAudit('CREATE', 'PATIENT', newId, 'admin', `Paciente ${newPatient.firstName} ${newPatient.lastName} (DNI: ${cleanDocNum}) registrado en Firebase Firestore`)
+    } catch (err: any) {
+      console.error('[Firebase Create Patient Error]:', err)
+      throw new Error(err?.message || 'Error al guardar paciente en Firebase Firestore')
     }
     return newPatient
   },
@@ -368,7 +407,7 @@ export const api = {
   updatePatient: async (id: number, data: Partial<Patient>): Promise<Patient> => {
     try {
       const docRef = doc(db, 'patients', String(id))
-      await setDoc(docRef, { ...data, updatedAt: new Date().toISOString() }, { merge: true })
+      await setDoc(docRef, sanitizeForFirestore({ ...data, updatedAt: new Date().toISOString() }), { merge: true })
       const snap = await getDoc(docRef)
       if (snap.exists()) {
         return { id, ...snap.data() } as Patient
@@ -428,7 +467,7 @@ export const api = {
       active: data.active !== false,
     }
     try {
-      await setDoc(doc(db, 'professionals', String(newId)), newProf)
+      await setDoc(doc(db, 'professionals', String(newId)), sanitizeForFirestore(newProf))
       await logAudit('CREATE', 'PROFESSIONAL', newId, 'admin', `Profesional ${newProf.firstName} ${newProf.lastName} registrado en Firebase`)
     } catch (err) {
       console.warn('[Firebase Create Professional Error]:', err)
@@ -438,7 +477,7 @@ export const api = {
 
   updateProfessional: async (id: number, data: Partial<Professional>): Promise<Professional> => {
     try {
-      await setDoc(doc(db, 'professionals', String(id)), data, { merge: true })
+      await setDoc(doc(db, 'professionals', String(id)), sanitizeForFirestore(data), { merge: true })
     } catch (err) {
       console.warn('[Firebase Update Professional Error]:', err)
     }
@@ -457,9 +496,9 @@ export const api = {
       snap.forEach((d) => {
         const data = d.data()
         list.push({
-          id: Number(d.id) || Number(data.id) || list.length + 1,
-          patientId: Number(data.patientId),
-          professionalId: Number(data.professionalId),
+          id: Number(d.id) || Number(data.id) || (d.id as any),
+          patientId: Number(data.patientId) || (data.patientId as any),
+          professionalId: Number(data.professionalId) || (data.professionalId as any),
           scheduledStart: data.scheduledStart,
           scheduledEnd: data.scheduledEnd,
           status: data.status,
@@ -469,8 +508,12 @@ export const api = {
           updatedAt: data.updatedAt,
         })
       })
+
+      // Sort chronological by scheduled start
+      list.sort((a, b) => new Date(a.scheduledStart).getTime() - new Date(b.scheduledStart).getTime())
+
       if (params?.professionalId) {
-        return list.filter((a) => a.professionalId === Number(params.professionalId))
+        return list.filter((a) => String(a.professionalId) === String(params.professionalId))
       }
       return list.length ? list : fallbackAppointments
     } catch (err) {
@@ -483,22 +526,24 @@ export const api = {
     const newId = Date.now()
     const newAppt: Appointment = {
       id: newId,
-      patientId: Number(data.patientId),
-      professionalId: Number(data.professionalId),
+      patientId: Number(data.patientId) || (data.patientId as any),
+      professionalId: Number(data.professionalId) || (data.professionalId as any),
       scheduledStart: data.scheduledStart || new Date().toISOString(),
       scheduledEnd: data.scheduledEnd || new Date().toISOString(),
       status: data.status || 'PROGRAMADA',
       reason: data.reason || 'Consulta',
-      notes: data.notes,
+      notes: data.notes || '',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     }
+    fallbackAppointments.unshift(newAppt)
+
     try {
-      await setDoc(doc(db, 'appointments', String(newId)), newAppt)
-      await logAudit('CREATE', 'APPOINTMENT', newId, 'mabel', `Cita #${newId} agendada en Firebase`)
-    } catch (err) {
-      console.warn('[Firebase Create Appointment Error]:', err)
-      fallbackAppointments.push(newAppt)
+      await setDoc(doc(db, 'appointments', String(newId)), sanitizeForFirestore(newAppt))
+      await logAudit('CREATE', 'APPOINTMENT', newId, 'mabel', `Cita #${newId} agendada en Firebase Firestore`)
+    } catch (err: any) {
+      console.error('[Firebase Create Appointment Error]:', err)
+      throw new Error(err?.message || 'Error al agendar cita en Firebase Firestore')
     }
     return newAppt
   },
@@ -506,7 +551,7 @@ export const api = {
   updateAppointment: async (id: number, data: Partial<Appointment>): Promise<Appointment> => {
     try {
       const docRef = doc(db, 'appointments', String(id))
-      await setDoc(docRef, { ...data, updatedAt: new Date().toISOString() }, { merge: true })
+      await setDoc(docRef, sanitizeForFirestore({ ...data, updatedAt: new Date().toISOString() }), { merge: true })
     } catch (err) {
       console.warn('[Firebase Update Appointment Error]:', err)
     }
@@ -518,7 +563,7 @@ export const api = {
       const docRef = doc(db, 'appointments', String(id))
       const updateData: any = { status, updatedAt: new Date().toISOString() }
       if (notes) updateData.notes = notes
-      await updateDoc(docRef, updateData)
+      await updateDoc(docRef, sanitizeForFirestore(updateData))
       await logAudit('STATUS_CHANGE', 'APPOINTMENT', id, 'admin', `Estado de cita cambiado a ${status}`)
       const snap = await getDoc(docRef)
       if (snap.exists()) {
@@ -581,7 +626,7 @@ export const api = {
       updatedAt: new Date().toISOString(),
     }
     try {
-      await setDoc(doc(db, 'clinical_records', String(newId)), newRecord)
+      await setDoc(doc(db, 'clinical_records', String(newId)), sanitizeForFirestore(newRecord))
       if (data.appointmentId) {
         await api.updateAppointmentStatus(Number(data.appointmentId), 'ATENDIDA')
       }
@@ -634,15 +679,15 @@ export const api = {
       currency: data.currency || 'PEN',
       paymentMethod: data.paymentMethod || 'EFECTIVO',
       status: data.status || 'PAGADO',
-      reference: data.reference,
-      notes: data.notes,
+      reference: data.reference || '',
+      notes: data.notes || '',
       paidAt: data.paidAt || new Date().toISOString(),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     }
     try {
-      await setDoc(doc(db, 'payments', String(newId)), newPayment)
-      await logAudit('CREATE', 'PAYMENT', newId, 'admin', `Cobro de ${newPayment.currency} ${newPayment.amount} en Firebase`)
+      await setDoc(doc(db, 'payments', String(newId)), sanitizeForFirestore(newPayment))
+      await logAudit('CREATE', 'PAYMENT', newId, 'mabel', `Pago registrado por S/ ${newPayment.amount}`)
     } catch (err) {
       console.warn('[Firebase Create Payment Error]:', err)
     }

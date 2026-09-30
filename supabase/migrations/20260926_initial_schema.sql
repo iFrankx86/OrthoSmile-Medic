@@ -138,14 +138,13 @@ CREATE POLICY "Allow backend service access" ON audit_logs FOR ALL USING (true);
 -- Seed Users (Admin, Dr. Gustavo Chávez, Mabel)
 INSERT INTO users (id, username, password, full_name, role, email) VALUES
 (1, 'admin', 'admin123', 'Administrador', 'ADMINISTRADOR', 'admin@orthosmile.com'),
-(2, 'dr.chavez', 'chavez123', 'Dr. Gustavo Chávez', 'ODONTOLOGO', 'gustavo.chavez@orthosmile.com'),
+(2, 'dr.chavez', 'chavez123', 'Dr. Manuel Gustavo Chavez Sevillano (Orthodontist, MSc, PhD)', 'ODONTOLOGO', 'gustavo.chavez@orthosmile.com'),
 (3, 'mabel', 'mabel123', 'Mabel (Recepción)', 'RECEPCIONISTA', 'mabel@orthosmile.com')
 ON CONFLICT (username) DO NOTHING;
 
 -- Seed Professionals
 INSERT INTO professionals (id, user_id, first_name, last_name, license_number, specialty, phone, active) VALUES
-(1, 2, 'Gustavo', 'Chávez', 'COP-18452', 'Ortodoncia y Cirugía Oral', '+51 987 654 321', true),
-(2, NULL, 'Elena', 'Ríos Mendoza', 'COP-22104', 'Endodoncia y Estética Dental', '+51 912 345 678', true)
+(1, 2, 'Manuel Gustavo', 'Chavez Sevillano', 'COP-18452', 'Orthodontist, MSc, PhD', '+51 987 654 321', true)
 ON CONFLICT (license_number) DO NOTHING;
 
 -- Seed Patients

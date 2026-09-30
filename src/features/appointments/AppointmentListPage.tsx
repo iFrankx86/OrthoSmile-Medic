@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
-import { Appointment, Patient, Professional } from '../../types/models'
+import { Appointment, Patient, Professional } from '../../types'
+import { api } from '../../services/api'
 import {
   Calendar as CalendarIcon,
   Plus,
@@ -41,22 +42,17 @@ export const AppointmentListPage: React.FC = () => {
   const loadData = async (silent = false) => {
     try {
       if (!silent) setLoading(true)
-      const timestamp = Date.now()
-      const [apptsRes, patsRes, profsRes] = await Promise.all([
-        fetch(`/api/v1/appointments?_t=${timestamp}`, { cache: 'no-store' }),
-        fetch(`/api/v1/patients?_t=${timestamp}`, { cache: 'no-store' }),
-        fetch(`/api/v1/professionals?_t=${timestamp}`, { cache: 'no-store' }),
-      ])
+      // Direct Firebase Firestore retrieval for live consistency
       const [apptsData, patsData, profsData] = await Promise.all([
-        apptsRes.json(),
-        patsRes.json(),
-        profsRes.json(),
+        api.getAppointments(),
+        api.getPatients(),
+        api.getProfessionals(),
       ])
       setAppointments(Array.isArray(apptsData) ? apptsData : [])
       setPatients(Array.isArray(patsData) ? patsData : [])
       setProfessionals(Array.isArray(profsData) ? profsData : [])
     } catch (e) {
-      console.error(e)
+      console.error('[Firebase Appointments Fetch Error]:', e)
     } finally {
       if (!silent) setLoading(false)
     }
@@ -86,73 +82,105 @@ export const AppointmentListPage: React.FC = () => {
     const actionParam = searchParams.get('action')
     if (patientIdParam || actionParam === 'new') {
       setShowModal(true)
-      if (patientIdParam) {
-        setNewAppt((prev) => ({ ...prev, patientId: String(patientIdParam) }))
-      }
+      setNewAppt((prev) => ({
+        ...prev,
+        patientId: patientIdParam ? String(patientIdParam) : prev.patientId,
+        professionalId: prev.professionalId || (professionals[0]?.id ? String(professionals[0].id) : '1'),
+      }))
       loadData(true)
     }
-  }, [searchParams])
+  }, [searchParams, professionals])
 
   const filteredPatients = useMemo(() => {
-    if (!patientSearch.trim()) return patients
-    const q = patientSearch.toLowerCase().trim()
-    return patients.filter(
-      (p) =>
-        p.firstName.toLowerCase().includes(q) ||
-        p.lastName.toLowerCase().includes(q) ||
-        p.documentNumber.includes(q) ||
-        (p.phone && p.phone.includes(q))
-    )
-  }, [patients, patientSearch])
+    let result = patients
+    if (patientSearch.trim()) {
+      const q = patientSearch.toLowerCase().trim()
+      result = patients.filter(
+        (p) =>
+          p.firstName.toLowerCase().includes(q) ||
+          p.lastName.toLowerCase().includes(q) ||
+          p.documentNumber.includes(q) ||
+          (p.phone && p.phone.includes(q))
+      )
+    }
+    if (newAppt.patientId && !result.some((p) => String(p.id) === String(newAppt.patientId))) {
+      const selected = patients.find((p) => String(p.id) === String(newAppt.patientId))
+      if (selected) {
+        return [selected, ...result]
+      }
+    }
+    return result
+  }, [patients, patientSearch, newAppt.patientId])
 
   const handleOpenModal = () => {
     setErrorMsg(null)
     setPatientSearch('')
     setShowModal(true)
+    setNewAppt((prev) => ({
+      ...prev,
+      professionalId: prev.professionalId || (professionals[0]?.id ? String(professionals[0].id) : '1'),
+    }))
     loadData(true)
   }
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
     setErrorMsg(null)
+
+    if (!newAppt.patientId) {
+      setErrorMsg('Por favor seleccione un paciente.')
+      return
+    }
+    const chosenProfId = newAppt.professionalId || (professionals[0]?.id ? String(professionals[0].id) : '1')
+    if (!chosenProfId) {
+      setErrorMsg('Por favor seleccione el odontólogo.')
+      return
+    }
+    if (!newAppt.scheduledStart) {
+      setErrorMsg('Por favor seleccione la fecha y hora de la cita.')
+      return
+    }
+
     try {
       const start = new Date(newAppt.scheduledStart)
       const end = new Date(start.getTime() + 45 * 60000) // 45 min duration
-      const res = await fetch('/api/v1/appointments', {
+      const payload = {
+        patientId: Number(newAppt.patientId) || (newAppt.patientId as any),
+        professionalId: Number(chosenProfId) || 1,
+        scheduledStart: start.toISOString(),
+        scheduledEnd: end.toISOString(),
+        status: 'PROGRAMADA' as const,
+        reason: newAppt.reason || 'Consulta Odontológica',
+        notes: newAppt.notes || '',
+      }
+
+      // 1. Direct Firebase Firestore Persistence
+      await api.createAppointment(payload)
+
+      // 2. Also notify backend non-blocking
+      fetch('/api/v1/appointments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          patientId: Number(newAppt.patientId),
-          professionalId: Number(newAppt.professionalId),
-          scheduledStart: start.toISOString(),
-          scheduledEnd: end.toISOString(),
-          reason: newAppt.reason,
-          notes: newAppt.notes,
-        }),
-      })
-      if (res.ok) {
-        setShowModal(false)
-        setNewAppt({ patientId: '', professionalId: '', scheduledStart: '', reason: '', notes: '' })
-        loadData()
-      } else {
-        const err = await res.json().catch(() => ({}))
-        setErrorMsg(err.message || 'Error al agendar cita.')
-      }
-    } catch (e: any) {
-      setErrorMsg('Error de red al conectar con el servidor.')
+        body: JSON.stringify(payload),
+      }).catch(() => {})
+
+      setShowModal(false)
+      setNewAppt({ patientId: '', professionalId: '', scheduledStart: '', reason: '', notes: '' })
+      await loadData(true)
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Error al agendar cita en Firebase Firestore.')
     }
   }
 
   const handleStatusChange = async (id: number, status: string) => {
     try {
-      const res = await fetch(`/api/v1/appointments/${id}/status`, {
+      await api.updateAppointmentStatus(id, status as any)
+      fetch(`/api/v1/appointments/${id}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
-      })
-      if (res.ok) {
-        loadData()
-      }
+      }).catch(() => {})
+      await loadData(true)
     } catch (e) {
       console.error(e)
     }
@@ -264,8 +292,8 @@ export const AppointmentListPage: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
           {filteredAppointments.map((appt) => {
-            const pat = patients.find((p) => p.id === appt.patientId)
-            const prof = professionals.find((pr) => pr.id === appt.professionalId)
+            const pat = patients.find((p) => String(p.id) === String(appt.patientId))
+            const prof = professionals.find((pr) => String(pr.id) === String(appt.professionalId))
             const badge = getStatusBadge(appt.status)
             const startDate = new Date(appt.scheduledStart)
             const formattedDate = startDate.toLocaleDateString('es-PE', {
@@ -328,7 +356,11 @@ export const AppointmentListPage: React.FC = () => {
                     {/* Doctor */}
                     <div className="mt-2 flex items-center gap-1.5 text-xs text-slate-500">
                       <Stethoscope size={13} className="text-slate-400" />
-                      <span>{prof ? `Dr. ${prof.firstName} ${prof.lastName}` : 'Dr. Gustavo Chávez'}</span>
+                      <span>
+                        {prof
+                          ? `Dr. ${prof.firstName} ${prof.lastName} (${prof.specialty})`
+                          : 'Dr. Manuel Gustavo Chavez Sevillano (Orthodontist, MSc, PhD)'}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -477,15 +509,18 @@ export const AppointmentListPage: React.FC = () => {
                 <select
                   required
                   className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm bg-white min-h-[44px]"
-                  value={newAppt.professionalId}
+                  value={newAppt.professionalId || (professionals[0]?.id ? String(professionals[0].id) : '1')}
                   onChange={(e) => setNewAppt({ ...newAppt, professionalId: e.target.value })}
                 >
-                  <option value="">Seleccione el odontólogo...</option>
-                  {professionals.map((pr) => (
-                    <option key={pr.id} value={pr.id}>
-                      Dr. {pr.firstName} {pr.lastName} ({pr.specialty})
-                    </option>
-                  ))}
+                  {professionals.length === 0 ? (
+                    <option value="1">Dr. Manuel Gustavo Chavez Sevillano (Orthodontist, MSc, PhD)</option>
+                  ) : (
+                    professionals.map((pr) => (
+                      <option key={pr.id} value={pr.id}>
+                        Dr. {pr.firstName} {pr.lastName} ({pr.specialty})
+                      </option>
+                    ))
+                  )}
                 </select>
               </div>
 

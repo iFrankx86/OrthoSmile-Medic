@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { Patient } from '../../types/models'
+import { Patient } from '../../types'
+import { api } from '../../services/api'
 import {
   UserPlus,
   Search,
@@ -25,14 +26,11 @@ export const PatientListPage: React.FC = () => {
   const fetchPatients = async (silent = false) => {
     try {
       if (!silent) setLoading(true)
-      const queryParam = searchTerm ? `q=${encodeURIComponent(searchTerm)}&` : ''
-      const res = await fetch(`/api/v1/patients?${queryParam}_t=${Date.now()}`, {
-        cache: 'no-store',
-      })
-      const data = await res.json()
+      // Direct Firebase Firestore retrieval
+      const data = await api.getPatients(searchTerm)
       setPatients(Array.isArray(data) ? data : [])
     } catch (e) {
-      console.error(e)
+      console.error('[Firebase Patient Fetch Error]:', e)
     } finally {
       if (!silent) setLoading(false)
     }
