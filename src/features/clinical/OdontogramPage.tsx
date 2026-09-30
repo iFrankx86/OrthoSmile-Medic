@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { doc, getDoc, setDoc } from 'firebase/firestore'
+import { db } from '../../lib/firebase'
 import { Patient } from '../../types/models'
 import {
   Smile,
@@ -102,18 +104,46 @@ export const OdontogramPage: React.FC = () => {
       })
   }, [])
 
-  // Load patient saved teeth from clinical records or localStorage
+  // Load patient saved teeth from Firestore and localStorage
   useEffect(() => {
     if (!selectedPatientId) return
-    try {
-      const stored = localStorage.getItem(`ortho_odontogram_${selectedPatientId}`)
-      if (stored) {
-        setTeethData(JSON.parse(stored))
-      } else {
-        // default clean arch with demo caries on #16 and #36
-        setTeethData({ 16: 'CARIES', 36: 'CURADO', 48: 'EXTRAIDO' })
+    let isMounted = true
+
+    async function loadTeeth() {
+      // 1. Try Firestore cloud document first
+      try {
+        const docRef = doc(db, 'patients', String(selectedPatientId))
+        const snap = await getDoc(docRef)
+        if (snap.exists() && snap.data()?.odontogram) {
+          if (isMounted) {
+            setTeethData(snap.data().odontogram)
+            localStorage.setItem(`ortho_odontogram_${selectedPatientId}`, JSON.stringify(snap.data().odontogram))
+            return
+          }
+        }
+      } catch (err) {
+        console.warn('[Firestore Odontogram Load Error]:', err)
       }
-    } catch (e) {}
+
+      // 2. Fallback to localStorage
+      try {
+        const stored = localStorage.getItem(`ortho_odontogram_${selectedPatientId}`)
+        if (stored && isMounted) {
+          setTeethData(JSON.parse(stored))
+          return
+        }
+      } catch (e) {}
+
+      // 3. Default state if brand new patient
+      if (isMounted) {
+        setTeethData({})
+      }
+    }
+
+    loadTeeth()
+    return () => {
+      isMounted = false
+    }
   }, [selectedPatientId])
 
   const handleToothTap = (toothNum: number) => {
@@ -124,11 +154,19 @@ export const OdontogramPage: React.FC = () => {
     })
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (selectedPatientId) {
       try {
         localStorage.setItem(`ortho_odontogram_${selectedPatientId}`, JSON.stringify(teethData))
-      } catch (e) {}
+        // Persist directly to Firebase Firestore
+        await setDoc(
+          doc(db, 'patients', String(selectedPatientId)),
+          { odontogram: teethData, updatedAt: new Date().toISOString() },
+          { merge: true }
+        )
+      } catch (e) {
+        console.warn('[Firestore Odontogram Save Error]:', e)
+      }
     }
     setSavedSuccess(true)
     setTimeout(() => setSavedSuccess(false), 3000)

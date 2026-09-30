@@ -47,6 +47,8 @@ export interface Appointment {
   scheduledStart: string
   scheduledEnd: string
   status: AppointmentStatus
+  turnNumber?: number
+  orderNumber?: number
   reason?: string
   notes?: string
   canceledAt?: string
@@ -69,8 +71,17 @@ export interface ClinicalRecord {
   updatedAt?: string
 }
 
-export type PaymentMethod = 'EFECTIVO' | 'TARJETA' | 'TRANSFERENCIA' | 'YAPE' | 'PLIN' | 'OTRO'
-export type PaymentStatus = 'PENDIENTE' | 'PARCIAL' | 'PAGADO' | 'ANULADO'
+export type PaymentMethod =
+  | 'EFECTIVO'
+  | 'CARTERA_DIGITAL'
+  | 'YAPE_PLIN'
+  | 'DEPOSITO_BBVA'
+  | 'TARJETA'
+  | 'TRANSFERENCIA'
+  | 'YAPE'
+  | 'PLIN'
+  | 'OTRO'
+export type PaymentStatus = 'PENDIENTE' | 'PARCIAL' | 'PAGADO' | 'COMPLETADO' | 'ANULADO'
 
 export interface Payment {
   id: number

@@ -11,6 +11,7 @@ import {
   Mail,
   Calendar,
   Smile,
+  DollarSign,
   X,
   User,
   ChevronRight,
@@ -197,35 +198,43 @@ export const PatientListPage: React.FC = () => {
                 </div>
 
                 {/* Quick Clinical Touch Actions (Large Hitboxes) */}
-                <div className="grid grid-cols-4 gap-1.5 pt-2 border-t border-slate-100">
+                <div className="grid grid-cols-5 gap-1 pt-2 border-t border-slate-100">
                   <Link
                     to={`/citas?patientId=${p.id}&action=new`}
-                    className="flex flex-col items-center justify-center p-2 rounded-xl bg-emerald-50 text-emerald-700 text-center min-h-[44px] hover:bg-emerald-100 active:scale-95 transition-all"
+                    className="flex flex-col items-center justify-center p-1.5 rounded-xl bg-sky-50 text-sky-700 text-center min-h-[44px] hover:bg-sky-100 active:scale-95 transition-all"
                     title="Agendar Cita Médica"
                   >
-                    <Calendar size={16} />
-                    <span className="text-[10px] font-semibold mt-0.5">Citar</span>
+                    <Calendar size={15} />
+                    <span className="text-[9px] font-semibold mt-0.5">Citar</span>
+                  </Link>
+                  <Link
+                    to={`/pagos?patientId=${p.id}&action=new`}
+                    className="flex flex-col items-center justify-center p-1.5 rounded-xl bg-emerald-50 text-emerald-700 text-center min-h-[44px] hover:bg-emerald-100 active:scale-95 transition-all"
+                    title="Cobrar en Caja / Registrar Pago"
+                  >
+                    <DollarSign size={15} />
+                    <span className="text-[9px] font-semibold mt-0.5">Cobrar</span>
                   </Link>
                   <Link
                     to={`/odontograma?patientId=${p.id}`}
-                    className="flex flex-col items-center justify-center p-2 rounded-xl bg-sky-50 text-sky-700 text-center min-h-[44px] hover:bg-sky-100 active:scale-95 transition-all"
+                    className="flex flex-col items-center justify-center p-1.5 rounded-xl bg-indigo-50 text-indigo-700 text-center min-h-[44px] hover:bg-indigo-100 active:scale-95 transition-all"
                   >
-                    <Smile size={16} />
-                    <span className="text-[10px] font-semibold mt-0.5">Odontogr.</span>
+                    <Smile size={15} />
+                    <span className="text-[9px] font-semibold mt-0.5">Odonto</span>
                   </Link>
                   <Link
                     to={`/historias?patientId=${p.id}`}
-                    className="flex flex-col items-center justify-center p-2 rounded-xl bg-indigo-50 text-indigo-700 text-center min-h-[44px] hover:bg-indigo-100 active:scale-95 transition-all"
+                    className="flex flex-col items-center justify-center p-1.5 rounded-xl bg-purple-50 text-purple-700 text-center min-h-[44px] hover:bg-purple-100 active:scale-95 transition-all"
                   >
-                    <FileText size={16} />
-                    <span className="text-[10px] font-semibold mt-0.5">Historia</span>
+                    <FileText size={15} />
+                    <span className="text-[9px] font-semibold mt-0.5">Historia</span>
                   </Link>
                   <Link
                     to={`/pacientes/${p.id}/editar`}
-                    className="flex flex-col items-center justify-center p-2 rounded-xl bg-slate-100 text-slate-700 text-center min-h-[44px] hover:bg-slate-200 active:scale-95 transition-all"
+                    className="flex flex-col items-center justify-center p-1.5 rounded-xl bg-slate-100 text-slate-700 text-center min-h-[44px] hover:bg-slate-200 active:scale-95 transition-all"
                   >
-                    <Edit2 size={16} />
-                    <span className="text-[10px] font-semibold mt-0.5">Editar</span>
+                    <Edit2 size={15} />
+                    <span className="text-[9px] font-semibold mt-0.5">Editar</span>
                   </Link>
                 </div>
               </div>

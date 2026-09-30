@@ -36,7 +36,7 @@ export const MobileBottomNav: React.FC = () => {
       icon: CreditCard,
       label: 'Caja y Pagos',
       desc: 'Cobros, recibos e ingresos',
-      roles: ['ADMINISTRADOR', 'RECEPCIONISTA'],
+      roles: ['ADMINISTRADOR', 'RECEPCIONISTA', 'ODONTOLOGO'],
     },
     {
       to: '/profesionales',

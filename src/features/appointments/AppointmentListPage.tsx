@@ -17,6 +17,9 @@ import {
   RefreshCw,
   Search,
   UserPlus,
+  FileText,
+  DollarSign,
+  Smile,
 } from 'lucide-react'
 
 export const AppointmentListPage: React.FC = () => {
@@ -365,36 +368,69 @@ export const AppointmentListPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Touch Quick Status Transitions */}
+                {/* Touch Quick Status Transitions & Complete Clinical Workflow */}
                 <div className="pt-3 border-t border-slate-100 grid grid-cols-2 gap-2">
-                  {appt.status !== 'ATENDIDA' && (
-                    <button
-                      onClick={() => handleStatusChange(appt.id, 'ATENDIDA')}
-                      className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-semibold border border-emerald-200 transition-colors min-h-[40px]"
-                    >
-                      <Check size={14} />
-                      <span>Marcar Atendida</span>
-                    </button>
-                  )}
+                  {appt.status === 'ATENDIDA' ? (
+                    <>
+                      <Link
+                        to={`/historias?patientId=${appt.patientId}&appointmentId=${appt.id}&action=new`}
+                        className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-semibold border border-purple-200 transition-colors min-h-[40px]"
+                        title="Registrar evolución clínica de la consulta"
+                      >
+                        <FileText size={14} />
+                        <span>Evolución</span>
+                      </Link>
 
-                  {appt.status !== 'CONFIRMADA' && appt.status !== 'ATENDIDA' && (
-                    <button
-                      onClick={() => handleStatusChange(appt.id, 'CONFIRMADA')}
-                      className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-semibold border border-sky-200 transition-colors min-h-[40px]"
-                    >
-                      <CheckCircle2 size={14} />
-                      <span>Confirmar</span>
-                    </button>
-                  )}
+                      <Link
+                        to={`/pagos?patientId=${appt.patientId}&appointmentId=${appt.id}&action=new`}
+                        className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-semibold border border-emerald-200 transition-colors min-h-[40px]"
+                        title="Cobrar en caja y generar boleta"
+                      >
+                        <DollarSign size={14} />
+                        <span>Cobrar en Caja</span>
+                      </Link>
 
-                  {appt.status !== 'CANCELADA' && (
-                    <button
-                      onClick={() => handleStatusChange(appt.id, 'CANCELADA')}
-                      className="col-span-2 flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-xl text-slate-500 hover:text-rose-600 hover:bg-rose-50 text-[11px] font-medium transition-colors"
-                    >
-                      <X size={13} />
-                      <span>Cancelar Cita</span>
-                    </button>
+                      <Link
+                        to={`/odontograma?patientId=${appt.patientId}`}
+                        className="col-span-2 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl text-sky-700 bg-sky-50/70 hover:bg-sky-100 text-xs font-semibold border border-sky-200 transition-colors min-h-[36px]"
+                        title="Ver y editar mapa dental FDI del paciente"
+                      >
+                        <Smile size={14} />
+                        <span>Odontograma FDI del Paciente</span>
+                      </Link>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => handleStatusChange(appt.id, 'ATENDIDA')}
+                        className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-semibold border border-emerald-200 transition-colors min-h-[40px]"
+                      >
+                        <Check size={14} />
+                        <span>Marcar Atendida</span>
+                      </button>
+
+                      {appt.status !== 'CONFIRMADA' && (
+                        <button
+                          onClick={() => handleStatusChange(appt.id, 'CONFIRMADA')}
+                          className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-semibold border border-sky-200 transition-colors min-h-[40px]"
+                        >
+                          <CheckCircle2 size={14} />
+                          <span>Confirmar</span>
+                        </button>
+                      )}
+
+                      {appt.status !== 'CANCELADA' && (
+                        <button
+                          onClick={() => handleStatusChange(appt.id, 'CANCELADA')}
+                          className={`${
+                            appt.status === 'CONFIRMADA' ? 'col-span-1' : 'col-span-2'
+                          } flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-xl text-slate-500 hover:text-rose-600 hover:bg-rose-50 text-[11px] font-medium transition-colors`}
+                        >
+                          <X size={13} />
+                          <span>Cancelar Cita</span>
+                        </button>
+                      )}
+                    </>
                   )}
                 </div>
               </div>

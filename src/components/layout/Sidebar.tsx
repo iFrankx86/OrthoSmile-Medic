@@ -56,7 +56,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onCloseMobile }) =
       icon: CreditCard,
       label: 'Caja y Pagos',
       badge: 'Ingresos',
-      roles: ['ADMINISTRADOR', 'RECEPCIONISTA'],
+      roles: ['ADMINISTRADOR', 'RECEPCIONISTA', 'ODONTOLOGO'],
     },
     {
       to: '/profesionales',

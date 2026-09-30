@@ -45,6 +45,8 @@ export interface Appointment {
   scheduledStart: string
   scheduledEnd: string
   status: AppointmentStatus
+  turnNumber?: number
+  orderNumber?: number
   reason?: string
   notes?: string
   canceledAt?: string
@@ -72,8 +74,8 @@ export interface Payment {
   patientId: number
   amount: number
   currency: string
-  paymentMethod: 'EFECTIVO' | 'TARJETA' | 'TRANSFERENCIA' | 'YAPE_PLIN'
-  status: 'PENDIENTE' | 'COMPLETADO' | 'ANULADO'
+  paymentMethod: 'EFECTIVO' | 'CARTERA_DIGITAL' | 'YAPE_PLIN' | 'DEPOSITO_BBVA' | 'TARJETA' | 'TRANSFERENCIA'
+  status: 'PENDIENTE' | 'COMPLETADO' | 'PAGADO' | 'ANULADO'
   reference?: string
   notes?: string
   paidAt?: string

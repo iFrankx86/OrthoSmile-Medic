@@ -53,6 +53,10 @@ export default function App() {
             <Route path="historias" element={<ClinicalHistoryPage />} />
             <Route path="odontograma" element={<OdontogramPage />} />
             <Route path="pagos" element={<PaymentListPage />} />
+            <Route path="payments" element={<Navigate to="/pagos" replace />} />
+            <Route path="caja" element={<Navigate to="/pagos" replace />} />
+            <Route path="cobros" element={<Navigate to="/pagos" replace />} />
+            <Route path="cobrar" element={<Navigate to="/pagos" replace />} />
             <Route path="profesionales" element={<ProfessionalListPage />} />
             <Route path="database" element={<DatabaseViewerPage />} />
             <Route

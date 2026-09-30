@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Payment, Patient } from '../../types/models'
+import { api } from '../../services/api'
 import {
   CreditCard,
   DollarSign,
@@ -11,9 +13,11 @@ import {
   ArrowUpRight,
   User,
   X,
+  RefreshCw,
 } from 'lucide-react'
 
 export const PaymentListPage: React.FC = () => {
+  const [searchParams] = useSearchParams()
   const [payments, setPayments] = useState<Payment[]>([])
   const [patients, setPatients] = useState<Patient[]>([])
   const [loading, setLoading] = useState(true)
@@ -25,51 +29,84 @@ export const PaymentListPage: React.FC = () => {
     amount: '',
     paymentMethod: 'EFECTIVO',
     reference: '',
+    notes: '',
   })
 
-  const loadData = () => {
-    setLoading(true)
-    Promise.all([
-      fetch('/api/v1/payments').then((r) => r.json()),
-      fetch('/api/v1/patients').then((r) => r.json()),
-    ])
-      .then(([payData, patData]) => {
-        setPayments(Array.isArray(payData) ? payData : [])
-        setPatients(Array.isArray(patData) ? patData : [])
-      })
-      .finally(() => setLoading(false))
+  const loadData = async (silent = false) => {
+    if (!silent) setLoading(true)
+    try {
+      const [payData, patData] = await Promise.all([
+        api.getPayments(),
+        api.getPatients(),
+      ])
+      setPayments(Array.isArray(payData) ? payData : [])
+      setPatients(Array.isArray(patData) ? patData : [])
+    } catch (e) {
+      console.error('[Payments Fetch Error]:', e)
+    } finally {
+      if (!silent) setLoading(false)
+    }
   }
 
   useEffect(() => {
     loadData()
   }, [])
 
+  useEffect(() => {
+    const paramPatId = searchParams.get('patientId')
+    const paramAction = searchParams.get('action')
+    const paramAmount = searchParams.get('amount')
+    if (paramPatId || paramAction === 'new') {
+      setShowModal(true)
+      setNewPayment((prev) => ({
+        ...prev,
+        patientId: paramPatId ? String(paramPatId) : prev.patientId,
+        amount: paramAmount ? String(paramAmount) : prev.amount || '80',
+        reference: `BOLETA-${Date.now().toString().slice(-6)}`,
+      }))
+    }
+  }, [searchParams])
+
   const getPatientName = (id: number) => {
-    const p = patients.find((pat) => pat.id === id)
+    const p = patients.find((pat) => String(pat.id) === String(id))
     return p ? `${p.firstName} ${p.lastName}` : `Paciente #${id}`
+  }
+
+  const formatPaymentMethod = (method: string) => {
+    switch (method) {
+      case 'EFECTIVO':
+        return { label: 'Efectivo', icon: '💵', color: 'bg-emerald-50 text-emerald-800 border-emerald-200' }
+      case 'CARTERA_DIGITAL':
+      case 'YAPE_PLIN':
+        return { label: 'Yape / Plin', icon: '📱', color: 'bg-purple-50 text-purple-800 border-purple-200' }
+      case 'DEPOSITO_BBVA':
+      case 'TRANSFERENCIA':
+        return { label: 'Depósito BBVA', icon: '🏦', color: 'bg-blue-50 text-blue-800 border-blue-200' }
+      default:
+        return { label: method, icon: '💳', color: 'bg-slate-100 text-slate-800 border-slate-200' }
+    }
   }
 
   const handleCreatePayment = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
     try {
-      const res = await fetch('/api/v1/payments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          patientId: Number(newPayment.patientId),
-          appointmentId: 1,
-          amount: Number(newPayment.amount),
-          paymentMethod: newPayment.paymentMethod,
-          status: 'COMPLETADO',
-          reference: newPayment.reference || `REC-${Date.now().toString().slice(-6)}`,
-        }),
+      const refCode = newPayment.reference || `REC-${Date.now().toString().slice(-6)}`
+      await api.createPayment({
+        patientId: Number(newPayment.patientId),
+        clinicalRecordId: 1,
+        amount: Number(newPayment.amount),
+        currency: 'PEN',
+        paymentMethod: newPayment.paymentMethod as any,
+        status: 'PAGADO',
+        reference: refCode,
+        notes: newPayment.notes || 'Consulta y atención odontológica',
+        paidAt: new Date().toISOString(),
       })
-      if (res.ok) {
-        setShowModal(false)
-        setNewPayment({ patientId: '', amount: '', paymentMethod: 'EFECTIVO', reference: '' })
-        loadData()
-      }
+
+      setShowModal(false)
+      setNewPayment({ patientId: '', amount: '', paymentMethod: 'EFECTIVO', reference: '', notes: '' })
+      await loadData(true)
     } catch (e) {
       console.error(e)
     } finally {
@@ -203,7 +240,10 @@ export const PaymentListPage: React.FC = () => {
                   </div>
 
                   <div className="flex items-center justify-between text-xs text-slate-500 pt-2 border-t border-slate-100 font-mono">
-                    <span>Método: <strong className="text-slate-800">{p.paymentMethod}</strong></span>
+                    <span className="flex items-center gap-1.5">
+                      <span>{formatPaymentMethod(p.paymentMethod).icon}</span>
+                      <strong className="text-slate-800">{formatPaymentMethod(p.paymentMethod).label}</strong>
+                    </span>
                     <span>Ref: <strong className="text-slate-800">{p.reference || `#${p.id}`}</strong></span>
                   </div>
                 </div>
@@ -218,44 +258,47 @@ export const PaymentListPage: React.FC = () => {
                 <tr className="bg-slate-50/80 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
                   <th className="py-3 px-4">Comprobante / Fecha</th>
                   <th className="py-3 px-4">Paciente</th>
-                  <th className="py-3 px-4">Método de Pago</th>
+                  <th className="py-3 px-4">Medio de Pago</th>
                   <th className="py-3 px-4">Referencia</th>
                   <th className="py-3 px-4">Estado</th>
                   <th className="py-3 px-4 text-right">Monto (PEN)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {payments.map((p) => (
-                  <tr key={p.id} className="hover:bg-slate-50/60 transition-colors">
-                    <td className="py-3 px-4 font-mono text-xs text-slate-600">
-                      <div className="font-semibold text-slate-900">#REC-{p.id}</div>
-                      <div className="text-slate-400">
-                        {p.createdAt ? new Date(p.createdAt).toLocaleDateString('es-PE') : 'Hoy'}
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 font-medium text-slate-800">
-                      {getPatientName(p.patientId)}
-                    </td>
-                    <td className="py-3 px-4">
-                      <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-700 bg-slate-100 px-2 py-0.5 rounded-lg">
-                        <CreditCard size={12} />
-                        {p.paymentMethod}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-xs font-mono text-slate-500">
-                      {p.reference || `OP-${p.id}`}
-                    </td>
-                    <td className="py-3 px-4">
-                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                        <CheckCircle2 size={11} />
-                        {p.status}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-right font-mono font-bold text-slate-900 tabular-nums">
-                      S/ {Number(p.amount).toFixed(2)}
-                    </td>
-                  </tr>
-                ))}
+                {payments.map((p) => {
+                  const mInfo = formatPaymentMethod(p.paymentMethod)
+                  return (
+                    <tr key={p.id} className="hover:bg-slate-50/60 transition-colors">
+                      <td className="py-3 px-4 font-mono text-xs text-slate-600">
+                        <div className="font-semibold text-slate-900">#REC-{p.id}</div>
+                        <div className="text-slate-400">
+                          {p.createdAt ? new Date(p.createdAt).toLocaleDateString('es-PE') : 'Hoy'}
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 font-medium text-slate-800">
+                        {getPatientName(p.patientId)}
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg border ${mInfo.color}`}>
+                          <span>{mInfo.icon}</span>
+                          <span>{mInfo.label}</span>
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-xs font-mono text-slate-600">
+                        {p.reference || `OP-${p.id}`}
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                          <CheckCircle2 size={11} />
+                          {p.status}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-right font-mono font-bold text-slate-900 tabular-nums">
+                        S/ {Number(p.amount).toFixed(2)}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -317,20 +360,60 @@ export const PaymentListPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                   Medio de Pago <span className="text-rose-500">*</span>
                 </label>
+                
+                {/* Quick Touch Selection Pills */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-2">
+                  {[
+                    { key: 'EFECTIVO', label: 'Efectivo', sub: 'Caja en Soles', icon: '💵' },
+                    { key: 'CARTERA_DIGITAL', label: 'Cartera Digital', sub: 'Yape o Plin', icon: '📱' },
+                    { key: 'DEPOSITO_BBVA', label: 'Depósito BBVA', sub: 'Transferencia BBVA', icon: '🏦' },
+                  ].map((m) => {
+                    const isSelected = newPayment.paymentMethod === m.key
+                    return (
+                      <button
+                        key={m.key}
+                        type="button"
+                        onClick={() => setNewPayment({ ...newPayment, paymentMethod: m.key })}
+                        className={`p-2.5 rounded-xl border text-left transition-all min-h-[50px] ${
+                          isSelected
+                            ? 'border-sky-600 bg-sky-50 text-sky-900 ring-2 ring-sky-500/20 font-bold'
+                            : 'border-slate-200 hover:bg-slate-50 text-slate-700 font-medium'
+                        }`}
+                      >
+                        <div className="text-sm flex items-center gap-1.5">
+                          <span>{m.icon}</span>
+                          <span>{m.label}</span>
+                        </div>
+                        <span className="text-[10px] text-slate-500 block mt-0.5">{m.sub}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+
                 <select
                   required
                   className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm bg-white min-h-[44px]"
                   value={newPayment.paymentMethod}
                   onChange={(e) => setNewPayment({ ...newPayment, paymentMethod: e.target.value })}
                 >
-                  <option value="EFECTIVO">Efectivo</option>
-                  <option value="YAPE_PLIN">Yape / Plin / Billetera Digital</option>
-                  <option value="TARJETA">Tarjeta Débito / Crédito (POS)</option>
-                  <option value="TRANSFERENCIA">Transferencia Bancaria (BCP / BBVA)</option>
+                  <option value="EFECTIVO">💵 Efectivo (Caja en Soles)</option>
+                  <option value="CARTERA_DIGITAL">📱 Cartera Digital (Yape o Plin)</option>
+                  <option value="DEPOSITO_BBVA">🏦 Depósito / Transferencia BBVA</option>
                 </select>
+                
+                {newPayment.paymentMethod === 'CARTERA_DIGITAL' && (
+                  <p className="text-[11px] text-purple-700 bg-purple-50 p-2 rounded-lg mt-1.5 m-0">
+                    💡 Cobro mediante código QR o número de teléfono registrado en Yape o Plin.
+                  </p>
+                )}
+                {newPayment.paymentMethod === 'DEPOSITO_BBVA' && (
+                  <p className="text-[11px] text-blue-700 bg-blue-50 p-2 rounded-lg mt-1.5 m-0">
+                    💡 Verifique el comprobante o constancia de transferencia a la cuenta BBVA.
+                  </p>
+                )}
               </div>
 
               <div>

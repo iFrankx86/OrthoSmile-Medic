@@ -8,10 +8,14 @@ import {
   Stethoscope,
   DollarSign,
   X,
-  ChevronRight
+  ChevronRight,
+  CheckCircle2,
+  Receipt,
+  CreditCard,
+  AlertCircle,
 } from 'lucide-react'
 import { api } from '../../services/api'
-import { ClinicalRecord, Patient, Professional, Appointment } from '../../types'
+import { ClinicalRecord, Patient, Professional, Appointment, Payment } from '../../types'
 import { useToast } from '../../app/providers/AppProviders'
 
 export function ClinicalHistoryPage() {
@@ -20,6 +24,7 @@ export function ClinicalHistoryPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null)
   const [records, setRecords] = useState<ClinicalRecord[]>([])
+  const [patientPayments, setPatientPayments] = useState<Payment[]>([])
   const [loadingRecords, setLoadingRecords] = useState(false)
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
@@ -87,8 +92,15 @@ export function ClinicalHistoryPage() {
     async function loadRecords() {
       try {
         setLoadingRecords(true)
-        const data = await api.getClinicalRecordsByPatient(selectedPatientId)
-        setRecords(data)
+        const [data, pays] = await Promise.all([
+          api.getClinicalRecordsByPatient(selectedPatientId),
+          api.getPayments({ patientId: selectedPatientId }),
+        ])
+        const sorted = (Array.isArray(data) ? data : []).sort(
+          (a, b) => new Date(a.attentionDate).getTime() - new Date(b.attentionDate).getTime()
+        )
+        setRecords(sorted)
+        setPatientPayments(Array.isArray(pays) ? pays : [])
       } catch {
         showToast('Error al cargar registros clínicos del paciente', 'error')
       } finally {
@@ -302,68 +314,184 @@ export function ClinicalHistoryPage() {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {records.map((rec) => (
+                    {records.map((rec, idx) => {
+                      const sessionNumber = idx + 1
+                      const matchingPayment = patientPayments.find(
+                        (p) => String(p.clinicalRecordId) === String(rec.id)
+                      )
+
+                      return (
+                        <div
+                          key={rec.id}
+                          className="p-4 sm:p-5 rounded-2xl border border-slate-200/80 bg-white space-y-3.5 shadow-2xs hover:border-slate-300 transition-all"
+                        >
+                          {/* Card Top: Sequential Attention Number & Professional */}
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
+                            <div className="flex items-center gap-2">
+                              <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-sky-50 text-sky-800 border border-sky-200">
+                                Atención N° {String(sessionNumber).padStart(2, '0')}
+                              </span>
+                              <span className="text-xs font-bold text-slate-800">
+                                {getProfName(rec.professionalId)}
+                              </span>
+                            </div>
+                            <div className="text-xs text-slate-500 flex items-center gap-1.5 font-mono">
+                              <Clock size={14} className="text-slate-400" />
+                              <span>
+                                {new Date(rec.attentionDate).toLocaleString('es-PE', {
+                                  dateStyle: 'medium',
+                                  timeStyle: 'short',
+                                })}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                            <div>
+                              <span className="font-bold text-slate-500 block mb-0.5">Motivo de Consulta:</span>
+                              <span className="text-slate-900 font-medium">{rec.chiefComplaint}</span>
+                            </div>
+                            <div>
+                              <span className="font-bold text-slate-500 block mb-0.5">Diagnóstico Clínico:</span>
+                              <span className="text-slate-900 font-semibold">{rec.diagnosis || 'Evaluación de control'}</span>
+                            </div>
+                          </div>
+
+                          {rec.treatmentPlan && (
+                            <div className="text-xs bg-slate-50 p-3 rounded-xl border border-slate-100">
+                              <span className="font-bold text-slate-600 block mb-1">Plan de Tratamiento:</span>
+                              <p className="text-slate-700 m-0">{rec.treatmentPlan}</p>
+                            </div>
+                          )}
+
+                          {rec.clinicalNotes && (
+                            <div className="text-xs bg-slate-50 p-3 rounded-xl border border-slate-100">
+                              <span className="font-bold text-slate-600 block mb-1">Evolución y Notas:</span>
+                              <p className="text-slate-700 m-0">{rec.clinicalNotes}</p>
+                            </div>
+                          )}
+
+                          {/* Payment Card / Status Linked to this Attention */}
+                          <div className="pt-2 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            {matchingPayment ? (
+                              <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-emerald-50/90 border border-emerald-200 text-xs w-full sm:w-auto">
+                                <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
+                                <div>
+                                  <div className="font-bold text-emerald-900">
+                                    Cobro Realizado: S/ {Number(matchingPayment.amount).toFixed(2)}
+                                  </div>
+                                  <div className="text-[11px] text-emerald-700 font-mono">
+                                    {matchingPayment.paymentMethod === 'EFECTIVO'
+                                      ? 'Efectivo en Caja'
+                                      : matchingPayment.paymentMethod === 'CARTERA_DIGITAL' || matchingPayment.paymentMethod === 'YAPE_PLIN'
+                                      ? 'Cartera Digital (Yape / Plin)'
+                                      : matchingPayment.paymentMethod === 'DEPOSITO_BBVA' || matchingPayment.paymentMethod === 'TRANSFERENCIA'
+                                      ? 'Depósito BBVA'
+                                      : matchingPayment.paymentMethod}
+                                    {matchingPayment.reference ? ` · Ref: ${matchingPayment.reference}` : ''}
+                                  </div>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-amber-50/80 border border-amber-200 text-xs w-full sm:w-auto">
+                                <AlertCircle size={18} className="text-amber-600 shrink-0" />
+                                <div>
+                                  <div className="font-bold text-amber-900">Atención Pendiente de Cobro</div>
+                                  <div className="text-[11px] text-amber-700">Comprobante aún no emitido en caja</div>
+                                </div>
+                              </div>
+                            )}
+
+                            <button
+                              onClick={() =>
+                                navigate(
+                                  `/pagos?action=new&clinicalRecordId=${rec.id}&patientId=${selectedPatient.id}&amount=80`
+                                )
+                              }
+                              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold shadow-xs transition-colors min-h-[44px]"
+                            >
+                              <DollarSign size={14} />
+                              <span>{matchingPayment ? 'Emitir Nuevo Cobro' : 'Cobrar Atención'}</span>
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Patient Complete Payment History Card */}
+              <div className="space-y-3 pt-4 border-t border-slate-200/80">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                    <Receipt size={16} className="text-emerald-600" />
+                    <span>Historial de Pagos y Boletas del Paciente ({patientPayments.length})</span>
+                  </div>
+                  <button
+                    onClick={() =>
+                      navigate(`/pagos?action=new&patientId=${selectedPatient.id}&amount=80`)
+                    }
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:text-emerald-800"
+                  >
+                    <Plus size={14} />
+                    <span>+ Registrar Pago</span>
+                  </button>
+                </div>
+
+                {patientPayments.length === 0 ? (
+                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 text-center text-xs text-slate-400">
+                    Aún no se han emitido boletas de pago para este paciente.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {patientPayments.map((pay) => (
                       <div
-                        key={rec.id}
-                        className="p-4 sm:p-5 rounded-2xl border border-slate-200/80 bg-white space-y-3 shadow-2xs hover:border-slate-300 transition-all"
+                        key={pay.id}
+                        className="p-3.5 rounded-xl border border-slate-200/80 bg-white shadow-2xs space-y-2 flex flex-col justify-between"
                       >
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
+                        <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <span className="px-2 py-0.5 rounded-md text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-200">
-                              Atención #{rec.id}
-                            </span>
-                            <span className="text-xs font-semibold text-slate-800">
-                              {getProfName(rec.professionalId)}
-                            </span>
+                            <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold text-xs">
+                              <DollarSign size={14} />
+                            </div>
+                            <div>
+                              <div className="text-xs font-bold text-slate-900 font-mono">
+                                {pay.reference || `REC-${String(pay.id).slice(-6)}`}
+                              </div>
+                              <div className="text-[11px] text-slate-400">
+                                {pay.paidAt || pay.createdAt
+                                  ? new Date(pay.paidAt || pay.createdAt).toLocaleDateString('es-PE', {
+                                      day: 'numeric',
+                                      month: 'short',
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                    })
+                                  : 'Hoy'}
+                              </div>
+                            </div>
                           </div>
-                          <div className="text-xs text-slate-400 flex items-center gap-1.5">
-                            <Clock size={14} />
-                            <span>
-                              {new Date(rec.attentionDate).toLocaleString('es-PE', {
-                                dateStyle: 'medium',
-                                timeStyle: 'short',
-                              })}
+                          <div className="text-right">
+                            <span className="text-sm font-bold text-slate-900 font-mono">
+                              S/ {Number(pay.amount).toFixed(2)}
+                            </span>
+                            <span className="block text-[10px] font-semibold text-emerald-700">
+                              {pay.status || 'PAGADO'}
                             </span>
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                          <div>
-                            <span className="font-bold text-slate-500 block mb-0.5">Motivo:</span>
-                            <span className="text-slate-900 font-medium">{rec.chiefComplaint}</span>
-                          </div>
-                          <div>
-                            <span className="font-bold text-slate-500 block mb-0.5">Diagnóstico:</span>
-                            <span className="text-slate-900 font-semibold">{rec.diagnosis || 'No especificado'}</span>
-                          </div>
-                        </div>
-
-                        {rec.treatmentPlan && (
-                          <div className="text-xs bg-slate-50 p-3 rounded-xl border border-slate-100">
-                            <span className="font-bold text-slate-600 block mb-1">Plan de Tratamiento:</span>
-                            <p className="text-slate-700">{rec.treatmentPlan}</p>
-                          </div>
-                        )}
-
-                        {rec.clinicalNotes && (
-                          <div className="text-xs bg-slate-50 p-3 rounded-xl border border-slate-100">
-                            <span className="font-bold text-slate-600 block mb-1">Evolución y Notas:</span>
-                            <p className="text-slate-700">{rec.clinicalNotes}</p>
-                          </div>
-                        )}
-
-                        <div className="pt-2 flex justify-end">
-                          <button
-                            onClick={() =>
-                              navigate(
-                                `/payments?action=new&clinicalRecordId=${rec.id}&patientId=${selectedPatient.id}`
-                              )
-                            }
-                            className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-xs font-semibold border border-emerald-200 transition-colors min-h-[44px]"
-                          >
-                            <DollarSign size={14} />
-                            <span>Cobrar Atención</span>
-                          </button>
+                        <div className="text-[11px] text-slate-600 bg-slate-50 px-2.5 py-1.5 rounded-lg flex items-center justify-between font-mono">
+                          <span>Método:</span>
+                          <span className="font-semibold text-slate-800">
+                            {pay.paymentMethod === 'EFECTIVO'
+                              ? 'Efectivo en Caja'
+                              : pay.paymentMethod === 'CARTERA_DIGITAL' || pay.paymentMethod === 'YAPE_PLIN'
+                              ? 'Cartera Digital (Yape / Plin)'
+                              : pay.paymentMethod === 'DEPOSITO_BBVA' || pay.paymentMethod === 'TRANSFERENCIA'
+                              ? 'Depósito BBVA'
+                              : pay.paymentMethod}
+                          </span>
                         </div>
                       </div>
                     ))}
