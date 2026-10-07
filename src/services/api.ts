@@ -5,6 +5,7 @@ import {
   getDocs,
   setDoc,
   updateDoc,
+  deleteDoc,
 } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 import {
@@ -53,66 +54,7 @@ async function logAudit(action: string, entityName: string, entityId: string | n
   }
 }
 
-// Fallback in-memory data for offline resilience
-const fallbackPatients: Patient[] = [
-  {
-    id: 1,
-    firstName: 'Juan',
-    lastName: 'Castro Silva',
-    documentType: 'DNI',
-    documentNumber: '72345678',
-    birthDate: '1995-04-12',
-    email: 'juan.castro@gmail.com',
-    phone: '+51 945 112 233',
-    address: 'Av. Javier Prado Este 2450, Lima',
-    active: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 2,
-    firstName: 'Lucía',
-    lastName: 'Ramírez Vega',
-    documentType: 'DNI',
-    documentNumber: '45892147',
-    birthDate: '1990-11-23',
-    email: 'lucia.ramirez@hotmail.com',
-    phone: '+51 988 223 344',
-    address: 'Calle Los Pinos 142, Miraflores',
-    active: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 3,
-    firstName: 'Mateo',
-    lastName: 'Fernández Soto',
-    documentType: 'DNI',
-    documentNumber: '78912345',
-    birthDate: '2002-07-08',
-    email: 'mateo.fs@gmail.com',
-    phone: '+51 977 334 455',
-    address: 'Jr. Las Palmeras 310, San Isidro',
-    active: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 4,
-    firstName: 'Valeria',
-    lastName: 'Torres Benítez',
-    documentType: 'PASSPORT',
-    documentNumber: 'P8923412',
-    birthDate: '1988-02-15',
-    email: 'v.torres@outlook.com',
-    phone: '+51 966 445 566',
-    address: 'Av. Arequipa 1890, Lince',
-    active: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-]
-
+// Fallback professionals if collection is freshly initialized
 const fallbackProfessionals: Professional[] = [
   {
     id: 1,
@@ -123,45 +65,6 @@ const fallbackProfessionals: Professional[] = [
     specialty: 'Orthodontist, MSc, PhD',
     phone: '+51 987 654 321',
     active: true,
-  },
-]
-
-const fallbackAppointments: Appointment[] = [
-  {
-    id: 1,
-    patientId: 1,
-    professionalId: 1,
-    scheduledStart: new Date(Date.now() + 2 * 3600 * 1000).toISOString(),
-    scheduledEnd: new Date(Date.now() + 3 * 3600 * 1000).toISOString(),
-    status: 'CONFIRMADA',
-    reason: 'Evaluación para brackets metálicos',
-    notes: 'Paciente refiere molestia al masticar',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 2,
-    patientId: 2,
-    professionalId: 1,
-    scheduledStart: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
-    scheduledEnd: new Date(Date.now() + 25 * 3600 * 1000).toISOString(),
-    status: 'PROGRAMADA',
-    reason: 'Limpieza y profilaxis profunda',
-    notes: 'Primera sesión anual',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 3,
-    patientId: 3,
-    professionalId: 1,
-    scheduledStart: new Date(Date.now() - 48 * 3600 * 1000).toISOString(),
-    scheduledEnd: new Date(Date.now() - 47 * 3600 * 1000).toISOString(),
-    status: 'ATENDIDA',
-    reason: 'Control mensual de ortodoncia',
-    notes: 'Se cambiaron arcos y ligas',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
   },
 ]
 
@@ -332,10 +235,10 @@ export const api = {
             p.documentNumber.includes(q)
         )
       }
-      return list.length ? list : fallbackPatients
+      return list
     } catch (err) {
       console.warn('[Firebase Patients Warning]:', err)
-      return fallbackPatients
+      return []
     }
   },
 
@@ -346,7 +249,7 @@ export const api = {
       if (snap.exists()) {
         const data = snap.data()
         return {
-          id,
+          id: Number(snap.id) || id,
           firstName: data.firstName,
           lastName: data.lastName,
           documentType: data.documentType,
@@ -363,8 +266,6 @@ export const api = {
     } catch (err) {
       console.warn('[Firebase Get Patient Error]:', err)
     }
-    const found = fallbackPatients.find((p) => p.id === id)
-    if (found) return found
     throw new Error('Paciente no encontrado')
   },
 
@@ -392,8 +293,6 @@ export const api = {
       updatedAt: new Date().toISOString(),
     }
 
-    fallbackPatients.unshift(newPatient)
-
     try {
       await setDoc(doc(db, 'patients', String(newId)), sanitizeForFirestore(newPatient))
       await logAudit('CREATE', 'PATIENT', newId, 'admin', `Paciente ${newPatient.firstName} ${newPatient.lastName} (DNI: ${cleanDocNum}) registrado en Firebase Firestore`)
@@ -402,6 +301,17 @@ export const api = {
       throw new Error(err?.message || 'Error al guardar paciente en Firebase Firestore')
     }
     return newPatient
+  },
+
+  deletePatient: async (id: number): Promise<void> => {
+    try {
+      await deleteDoc(doc(db, 'patients', String(id)))
+      await logAudit('DELETE', 'PATIENT', id, 'admin', `Paciente #${id} eliminado de la base de datos`)
+      window.dispatchEvent(new CustomEvent('orthosmile:patient-deleted', { detail: { id } }))
+    } catch (err: any) {
+      console.error('[Firebase Delete Patient Error]:', err)
+      throw new Error(err?.message || 'Error al eliminar paciente de Firebase Firestore')
+    }
   },
 
   updatePatient: async (id: number, data: Partial<Patient>): Promise<Patient> => {
@@ -504,6 +414,11 @@ export const api = {
           status: data.status,
           reason: data.reason,
           notes: data.notes,
+          isPaid: Boolean(data.isPaid),
+          paidAmount: data.paidAmount ? Number(data.paidAmount) : undefined,
+          paymentId: data.paymentId ? Number(data.paymentId) : undefined,
+          paymentMethod: data.paymentMethod,
+          paymentReference: data.paymentReference,
           createdAt: data.createdAt,
           updatedAt: data.updatedAt,
         })
@@ -515,10 +430,10 @@ export const api = {
       if (params?.professionalId) {
         return list.filter((a) => String(a.professionalId) === String(params.professionalId))
       }
-      return list.length ? list : fallbackAppointments
+      return list
     } catch (err) {
       console.warn('[Firebase Appointments Error]:', err)
-      return fallbackAppointments
+      return []
     }
   },
 
@@ -536,7 +451,6 @@ export const api = {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     }
-    fallbackAppointments.unshift(newAppt)
 
     try {
       await setDoc(doc(db, 'appointments', String(newId)), sanitizeForFirestore(newAppt))
@@ -546,6 +460,17 @@ export const api = {
       throw new Error(err?.message || 'Error al agendar cita en Firebase Firestore')
     }
     return newAppt
+  },
+
+  deleteAppointment: async (id: number): Promise<void> => {
+    try {
+      await deleteDoc(doc(db, 'appointments', String(id)))
+      await logAudit('DELETE', 'APPOINTMENT', id, 'admin', `Cita #${id} eliminada de la base de datos`)
+      window.dispatchEvent(new CustomEvent('orthosmile:appointment-deleted', { detail: { id } }))
+    } catch (err: any) {
+      console.error('[Firebase Delete Appointment Error]:', err)
+      throw new Error(err?.message || 'Error al eliminar cita de Firebase Firestore')
+    }
   },
 
   updateAppointment: async (id: number, data: Partial<Appointment>): Promise<Appointment> => {
@@ -648,6 +573,7 @@ export const api = {
           id: Number(d.id) || Number(data.id) || list.length + 1,
           clinicalRecordId: Number(data.clinicalRecordId),
           patientId: Number(data.patientId),
+          appointmentId: data.appointmentId ? Number(data.appointmentId) : undefined,
           amount: Number(data.amount),
           currency: data.currency || 'PEN',
           paymentMethod: data.paymentMethod || 'EFECTIVO',
@@ -675,6 +601,7 @@ export const api = {
       id: newId,
       clinicalRecordId: Number(data.clinicalRecordId),
       patientId: data.patientId ? Number(data.patientId) : undefined,
+      appointmentId: data.appointmentId ? Number(data.appointmentId) : undefined,
       amount: Number(data.amount) || 0,
       currency: data.currency || 'PEN',
       paymentMethod: data.paymentMethod || 'EFECTIVO',
@@ -687,7 +614,27 @@ export const api = {
     }
     try {
       await setDoc(doc(db, 'payments', String(newId)), sanitizeForFirestore(newPayment))
-      await logAudit('CREATE', 'PAYMENT', newId, 'mabel', `Pago registrado por S/ ${newPayment.amount}`)
+
+      // If tied to an appointment, mark appointment as paid immediately in Firestore
+      if (data.appointmentId) {
+        try {
+          const apptDocRef = doc(db, 'appointments', String(data.appointmentId))
+          await updateDoc(apptDocRef, sanitizeForFirestore({
+            isPaid: true,
+            paidAmount: Number(data.amount) || 0,
+            paymentId: newId,
+            paymentMethod: data.paymentMethod || 'EFECTIVO',
+            paymentReference: data.reference || '',
+            updatedAt: new Date().toISOString(),
+          }))
+        } catch (apptErr) {
+          console.warn('[Firebase Link Payment to Appointment Error]:', apptErr)
+        }
+      }
+
+      await logAudit('CREATE', 'PAYMENT', newId, 'mabel', `Pago registrado por S/ ${newPayment.amount} (${newPayment.paymentMethod})`)
+      // Notify application real-time listeners
+      window.dispatchEvent(new CustomEvent('orthosmile:payment-registered', { detail: newPayment }))
     } catch (err) {
       console.warn('[Firebase Create Payment Error]:', err)
     }

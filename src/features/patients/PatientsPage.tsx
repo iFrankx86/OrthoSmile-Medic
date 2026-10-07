@@ -59,7 +59,7 @@ export function PatientsPage() {
   }, [search])
 
   useEffect(() => {
-    if (searchParams.get('action') === 'new') {
+    if (searchParams.get('action') === 'new' && !showModal) {
       handleOpenCreate()
     }
   }, [searchParams])
@@ -97,32 +97,38 @@ export function PatientsPage() {
   const handleCloseModal = () => {
     setShowModal(false)
     setEditingPatient(null)
-    if (searchParams.get('action')) {
-      searchParams.delete('action')
-      setSearchParams(searchParams)
+    if (searchParams.has('action')) {
+      const nextParams = new URLSearchParams(searchParams)
+      nextParams.delete('action')
+      setSearchParams(nextParams, { replace: true })
     }
   }
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!formData.firstName || !formData.lastName || !formData.documentNumber || !formData.birthDate) {
-      showToast('Complete los campos obligatorios marcados con (*)', 'warning')
+    if (!formData.firstName.trim() || !formData.lastName.trim() || !formData.documentNumber.trim()) {
+      showToast('Complete los nombres, apellidos y número de documento', 'warning')
       return
     }
 
     try {
       setSubmitting(true)
+      const payload = {
+        ...formData,
+        birthDate: formData.birthDate || '1995-01-01',
+      }
       if (editingPatient) {
-        await api.updatePatient(editingPatient.id, formData)
+        await api.updatePatient(editingPatient.id, payload)
         showToast('Paciente actualizado con éxito', 'success')
       } else {
-        await api.createPatient(formData)
+        await api.createPatient(payload)
         showToast('Paciente registrado correctamente', 'success')
       }
       handleCloseModal()
       loadPatients()
+      window.dispatchEvent(new CustomEvent('orthosmile:patient-created'))
     } catch (err: any) {
-      showToast(err.response?.data?.message || 'Error al guardar los datos del paciente', 'error')
+      showToast(err?.message || 'Error al guardar los datos del paciente', 'error')
     } finally {
       setSubmitting(false)
     }
@@ -424,8 +430,13 @@ export function PatientsPage() {
 
       {/* Modal Create/Edit Patient (Mobile-friendly Sheet / Center dialog) */}
       {showModal && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="bg-white w-full sm:max-w-2xl rounded-t-2xl sm:rounded-2xl shadow-2xl border border-slate-200 flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 z-50 overflow-y-auto flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity"
+            onClick={handleCloseModal}
+            aria-hidden="true"
+          />
+          <div className="relative bg-white w-full sm:max-w-2xl rounded-t-2xl sm:rounded-2xl shadow-2xl border border-slate-200 flex flex-col max-h-[90vh] z-10">
             <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10 rounded-t-2xl">
               <h2 className="text-base sm:text-lg font-bold text-slate-900">
                 {editingPatient ? 'Editar Paciente' : 'Registrar Nuevo Paciente'}

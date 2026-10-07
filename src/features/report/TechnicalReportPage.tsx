@@ -82,7 +82,7 @@ export const TechnicalReportPage: React.FC = () => {
             Informe Técnico de Arquitectura
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1 m-0">
-            OrthoSmile-Medic v1.0 · Tecnologías, Estructura, Patrones y Criterios QA/QX
+            OrthoSmile-Medic · Tecnologías, Estructura, Patrones y Criterios QA/QX
           </p>
         </div>
 
@@ -169,8 +169,6 @@ export const TechnicalReportPage: React.FC = () => {
             Sistema Integral de Gestión Clínica Odontológica y Ortodoncia
           </p>
           <div className="pt-2 flex flex-wrap items-center justify-center gap-3 text-xs text-slate-400">
-            <span>Versión 1.0 (Producción)</span>
-            <span>·</span>
             <span>Fecha: 29 de Septiembre de 2026</span>
             <span>·</span>
             <span className="text-emerald-600 font-medium">Auditoría QA/QX Aprobada</span>

@@ -106,7 +106,7 @@ export async function generateTechnicalReportDocx(): Promise<Buffer> {
                   }),
                   new TableCell({
                     width: { size: 70, type: WidthType.PERCENTAGE },
-                    children: [new Paragraph({ text: 'OrthoSmile-Medic v1.0' })],
+                    children: [new Paragraph({ text: 'OrthoSmile-Medic' })],
                   }),
                 ],
               }),

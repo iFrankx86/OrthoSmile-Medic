@@ -1,11 +1,14 @@
-import React, { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import React, { useState, useEffect } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Save, User, Phone, Mail, MapPin, Calendar, AlertCircle, CheckCircle2 } from 'lucide-react'
 import { api } from '../../services/api'
 import { DocumentType } from '../../types'
 
 export const PatientFormPage: React.FC = () => {
   const navigate = useNavigate()
+  const { id } = useParams<{ id?: string }>()
+  const isEditMode = Boolean(id)
+
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitAction, setSubmitAction] = useState<'save' | 'schedule'>('save')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -19,6 +22,28 @@ export const PatientFormPage: React.FC = () => {
     email: '',
     address: '',
   })
+
+  // Load existing patient if in edit mode
+  useEffect(() => {
+    if (id) {
+      api.getPatient(Number(id)).then((p) => {
+        if (p) {
+          setFormData({
+            firstName: p.firstName || '',
+            lastName: p.lastName || '',
+            documentType: (p.documentType as DocumentType) || 'DNI',
+            documentNumber: p.documentNumber || '',
+            birthDate: p.birthDate || '',
+            phone: p.phone || '',
+            email: p.email || '',
+            address: p.address || '',
+          })
+        }
+      }).catch((e) => {
+        console.warn('[Load Patient for Edit Error]:', e)
+      })
+    }
+  }, [id])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -73,12 +98,20 @@ export const PatientFormPage: React.FC = () => {
     setIsSubmitting(true)
 
     try {
-      // 1. Direct Firebase Firestore Persistence
-      const created = await api.createPatient(formData)
+      let created: any
+      const payload = {
+        ...formData,
+        birthDate: formData.birthDate || '1995-01-01',
+      }
+      if (isEditMode && id) {
+        created = await api.updatePatient(Number(id), payload)
+      } else {
+        created = await api.createPatient(payload)
+      }
 
       // 2. Also notify backup endpoint non-blocking
       fetch('/api/v1/patients', {
-        method: 'POST',
+        method: isEditMode ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       }).catch(() => {})
@@ -87,9 +120,9 @@ export const PatientFormPage: React.FC = () => {
       window.dispatchEvent(new CustomEvent('orthosmile:patient-created', { detail: created }))
 
       if (submitAction === 'schedule' && created?.id) {
-        navigate(`/citas?patientId=${created.id}&action=new`)
+        navigate(`/citas?patientId=${created.id}&action=new`, { replace: true })
       } else {
-        navigate('/pacientes')
+        navigate('/pacientes', { replace: true })
       }
     } catch (err: any) {
       setErrorMsg(err.message || 'Error al guardar el paciente en Firebase Firestore.')

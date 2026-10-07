@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
-import { Appointment, Patient, Professional } from '../../types'
+import { Appointment, Patient, Professional, Payment } from '../../types'
 import { api } from '../../services/api'
 import {
   Calendar as CalendarIcon,
@@ -20,6 +20,8 @@ import {
   FileText,
   DollarSign,
   Smile,
+  Receipt,
+  Trash2,
 } from 'lucide-react'
 
 export const AppointmentListPage: React.FC = () => {
@@ -27,12 +29,15 @@ export const AppointmentListPage: React.FC = () => {
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [patients, setPatients] = useState<Patient[]>([])
   const [professionals, setProfessionals] = useState<Professional[]>([])
+  const [payments, setPayments] = useState<Payment[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [statusFilter, setStatusFilter] = useState<string>('TODAS')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [patientSearch, setPatientSearch] = useState('')
   const [refreshingPatients, setRefreshingPatients] = useState(false)
+  const [appointmentToDelete, setAppointmentToDelete] = useState<Appointment | null>(null)
+  const [deletingAppt, setDeletingAppt] = useState(false)
 
   const [newAppt, setNewAppt] = useState({
     patientId: '',
@@ -46,14 +51,16 @@ export const AppointmentListPage: React.FC = () => {
     try {
       if (!silent) setLoading(true)
       // Direct Firebase Firestore retrieval for live consistency
-      const [apptsData, patsData, profsData] = await Promise.all([
+      const [apptsData, patsData, profsData, paysData] = await Promise.all([
         api.getAppointments(),
         api.getPatients(),
         api.getProfessionals(),
+        api.getPayments(),
       ])
       setAppointments(Array.isArray(apptsData) ? apptsData : [])
       setPatients(Array.isArray(patsData) ? patsData : [])
       setProfessionals(Array.isArray(profsData) ? profsData : [])
+      setPayments(Array.isArray(paysData) ? paysData : [])
     } catch (e) {
       console.error('[Firebase Appointments Fetch Error]:', e)
     } finally {
@@ -71,12 +78,19 @@ export const AppointmentListPage: React.FC = () => {
         setNewAppt((prev) => ({ ...prev, patientId: String(e.detail.id) }))
       }
     }
+    const handlePaymentRegistered = () => loadData(true)
 
     window.addEventListener('focus', handleFocus)
     window.addEventListener('orthosmile:patient-created', handlePatientCreated)
+    window.addEventListener('orthosmile:patient-deleted', handleFocus)
+    window.addEventListener('orthosmile:payment-registered', handlePaymentRegistered)
+    window.addEventListener('orthosmile:appointment-deleted', handleFocus)
     return () => {
       window.removeEventListener('focus', handleFocus)
       window.removeEventListener('orthosmile:patient-created', handlePatientCreated)
+      window.removeEventListener('orthosmile:patient-deleted', handleFocus)
+      window.removeEventListener('orthosmile:payment-registered', handlePaymentRegistered)
+      window.removeEventListener('orthosmile:appointment-deleted', handleFocus)
     }
   }, [])
 
@@ -219,10 +233,41 @@ export const AppointmentListPage: React.FC = () => {
     }
   }
 
-  const filteredAppointments = appointments.filter((a) => {
-    if (statusFilter === 'TODAS') return true
-    return a.status === statusFilter
-  })
+  // Sort all appointments chronologically (earliest to latest)
+  const sortedAppointments = useMemo(() => {
+    return [...appointments].sort((a, b) => {
+      const timeA = new Date(a.scheduledStart).getTime() || 0
+      const timeB = new Date(b.scheduledStart).getTime() || 0
+      return timeA - timeB
+    })
+  }, [appointments])
+
+  // Map each appointment to its sequential daily Turno (Turno #01, #02, #03...)
+  const turnMap = useMemo(() => {
+    const map = new Map<number, { turnNumber: number; totalDayTurns: number }>()
+    const dayGroups = new Map<string, typeof appointments>()
+
+    sortedAppointments.forEach((appt) => {
+      const dayKey = appt.scheduledStart ? appt.scheduledStart.split('T')[0] : 'general'
+      if (!dayGroups.has(dayKey)) dayGroups.set(dayKey, [])
+      dayGroups.get(dayKey)!.push(appt)
+    })
+
+    dayGroups.forEach((dayAppts) => {
+      dayAppts.forEach((appt, index) => {
+        map.set(appt.id, { turnNumber: index + 1, totalDayTurns: dayAppts.length })
+      })
+    })
+
+    return map
+  }, [sortedAppointments])
+
+  const filteredAppointments = useMemo(() => {
+    return sortedAppointments.filter((a) => {
+      if (statusFilter === 'TODAS') return true
+      return a.status === statusFilter
+    })
+  }, [sortedAppointments, statusFilter])
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -298,6 +343,7 @@ export const AppointmentListPage: React.FC = () => {
             const pat = patients.find((p) => String(p.id) === String(appt.patientId))
             const prof = professionals.find((pr) => String(pr.id) === String(appt.professionalId))
             const badge = getStatusBadge(appt.status)
+            const turnInfo = turnMap.get(appt.id) || { turnNumber: 1, totalDayTurns: 1 }
             const startDate = new Date(appt.scheduledStart)
             const formattedDate = startDate.toLocaleDateString('es-PE', {
               weekday: 'short',
@@ -312,22 +358,52 @@ export const AppointmentListPage: React.FC = () => {
             return (
               <div
                 key={appt.id}
-                className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-xs space-y-3 flex flex-col justify-between hover:border-slate-300 transition-all"
+                className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-xs space-y-3 flex flex-col justify-between hover:border-sky-300 transition-all"
               >
                 <div>
-                  {/* Top Bar: Date, Time & Status */}
+                  {/* Top Bar: Meaningful Sequential Turno & Status */}
                   <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-slate-100">
-                    <div className="flex items-center gap-2 text-xs font-semibold text-slate-900 font-mono">
-                      <Clock size={14} className="text-sky-600" />
-                      <span className="capitalize">{formattedDate}</span>
-                      <span>·</span>
-                      <span className="text-sky-700 tabular-nums">{formattedTime}</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-sky-100 text-sky-900 text-xs font-mono font-bold border border-sky-300 shadow-2xs">
+                        <span className="w-2 h-2 rounded-full bg-sky-600 animate-pulse" />
+                        Turno N° {String(turnInfo.turnNumber).padStart(2, '0')}
+                      </span>
+                      <div className="flex items-center gap-1 text-xs font-semibold text-slate-700 font-mono">
+                        <Clock size={13} className="text-sky-600" />
+                        <span className="capitalize">{formattedDate}</span>
+                        <span>·</span>
+                        <span className="text-sky-700 font-bold tabular-nums">{formattedTime}</span>
+                      </div>
                     </div>
 
-                    <span
-                      className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${badge.style}`}
-                    >
-                      {badge.label}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span
+                        className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${badge.style}`}
+                      >
+                        {badge.label}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setAppointmentToDelete(appt)}
+                        className="p-1 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                        title="Eliminar cita de la base de datos"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Order of Attention & Queue Status Helper */}
+                  <div className="mt-2 flex items-center justify-between text-[11px] px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-100 font-medium">
+                    <span className="text-slate-600">
+                      Orden de atención: <strong className="text-slate-900 font-bold">#{turnInfo.turnNumber}</strong> de {turnInfo.totalDayTurns}
+                    </span>
+                    <span className="text-sky-700 font-semibold">
+                      {appt.status === 'CONFIRMADA'
+                        ? '⏳ En Sala de Espera'
+                        : appt.status === 'ATENDIDA'
+                        ? '✓ Atención Realizada'
+                        : '📋 Programada'}
                     </span>
                   </div>
 
@@ -369,70 +445,127 @@ export const AppointmentListPage: React.FC = () => {
                 </div>
 
                 {/* Touch Quick Status Transitions & Complete Clinical Workflow */}
-                <div className="pt-3 border-t border-slate-100 grid grid-cols-2 gap-2">
-                  {appt.status === 'ATENDIDA' ? (
-                    <>
-                      <Link
-                        to={`/historias?patientId=${appt.patientId}&appointmentId=${appt.id}&action=new`}
-                        className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-semibold border border-purple-200 transition-colors min-h-[40px]"
-                        title="Registrar evolución clínica de la consulta"
-                      >
-                        <FileText size={14} />
-                        <span>Evolución</span>
-                      </Link>
+                {(() => {
+                  const matchingPayment = payments.find(
+                    (p) =>
+                      (p.status === 'PAGADO' || p.status === 'COMPLETADO') &&
+                      (p.id === appt.paymentId ||
+                        p.appointmentId === appt.id ||
+                        String(p.appointmentId) === String(appt.id) ||
+                        (String(p.patientId) === String(appt.patientId) &&
+                          (String(p.clinicalRecordId) === String(appt.id) ||
+                            (p.notes && appt.reason && p.notes.toLowerCase().includes(appt.reason.trim().toLowerCase())))))
+                  )
+                  const isApptPaid = Boolean(appt.isPaid || matchingPayment)
+                  const paidAmountVal = (matchingPayment ? Number(matchingPayment.amount) : appt.paidAmount || 80).toFixed(2)
 
-                      <Link
-                        to={`/pagos?patientId=${appt.patientId}&appointmentId=${appt.id}&action=new`}
-                        className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-semibold border border-emerald-200 transition-colors min-h-[40px]"
-                        title="Cobrar en caja y generar boleta"
-                      >
-                        <DollarSign size={14} />
-                        <span>Cobrar en Caja</span>
-                      </Link>
+                  return (
+                    <div className="pt-3 border-t border-slate-100 grid grid-cols-2 gap-2">
+                      {appt.status === 'ATENDIDA' ? (
+                        <>
+                          <Link
+                            to={`/historias?patientId=${appt.patientId}&appointmentId=${appt.id}&action=new`}
+                            className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-semibold border border-purple-200 transition-colors min-h-[40px]"
+                            title="Registrar evolución clínica de la consulta"
+                          >
+                            <FileText size={14} />
+                            <span>Evolución</span>
+                          </Link>
 
-                      <Link
-                        to={`/odontograma?patientId=${appt.patientId}`}
-                        className="col-span-2 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl text-sky-700 bg-sky-50/70 hover:bg-sky-100 text-xs font-semibold border border-sky-200 transition-colors min-h-[36px]"
-                        title="Ver y editar mapa dental FDI del paciente"
-                      >
-                        <Smile size={14} />
-                        <span>Odontograma FDI del Paciente</span>
-                      </Link>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        onClick={() => handleStatusChange(appt.id, 'ATENDIDA')}
-                        className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-semibold border border-emerald-200 transition-colors min-h-[40px]"
-                      >
-                        <Check size={14} />
-                        <span>Marcar Atendida</span>
-                      </button>
+                          {isApptPaid ? (
+                            <Link
+                              to={`/pagos?patientId=${appt.patientId}`}
+                              className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold border border-emerald-200 transition-colors min-h-[40px]"
+                              title="Ver boleta emitida en caja"
+                            >
+                              <CheckCircle2 size={14} className="text-emerald-600" />
+                              <span>✓ Pago Realizado (S/ {paidAmountVal})</span>
+                            </Link>
+                          ) : (
+                            <Link
+                              to={`/pagos?patientId=${appt.patientId}&appointmentId=${appt.id}&action=new`}
+                              className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition-colors min-h-[40px]"
+                              title="Cobrar en caja y generar boleta"
+                            >
+                              <DollarSign size={14} />
+                              <span>Cobrar en Caja (S/ 80)</span>
+                            </Link>
+                          )}
 
-                      {appt.status !== 'CONFIRMADA' && (
-                        <button
-                          onClick={() => handleStatusChange(appt.id, 'CONFIRMADA')}
-                          className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-semibold border border-sky-200 transition-colors min-h-[40px]"
-                        >
-                          <CheckCircle2 size={14} />
-                          <span>Confirmar</span>
-                        </button>
+                          <Link
+                            to={`/odontograma?patientId=${appt.patientId}`}
+                            className="col-span-2 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl text-sky-700 bg-sky-50/70 hover:bg-sky-100 text-xs font-semibold border border-sky-200 transition-colors min-h-[36px]"
+                            title="Ver y editar mapa dental FDI del paciente"
+                          >
+                            <Smile size={14} />
+                            <span>Odontograma FDI del Paciente</span>
+                          </Link>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => handleStatusChange(appt.id, 'ATENDIDA')}
+                            className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-semibold border border-emerald-200 transition-colors min-h-[40px]"
+                          >
+                            <Check size={14} />
+                            <span>Marcar Atendida</span>
+                          </button>
+
+                          {isApptPaid ? (
+                            <Link
+                              to={`/pagos?patientId=${appt.patientId}`}
+                              className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold border border-emerald-200 transition-colors min-h-[40px]"
+                              title="Pago ya registrado para esta cita"
+                            >
+                              <CheckCircle2 size={14} className="text-emerald-600" />
+                              <span>✓ Pagado (S/ {paidAmountVal})</span>
+                            </Link>
+                          ) : (
+                            <Link
+                              to={`/pagos?patientId=${appt.patientId}&appointmentId=${appt.id}&action=new`}
+                              className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold border border-slate-200 transition-colors min-h-[40px]"
+                              title="Cobrar en caja por anticipado"
+                            >
+                              <DollarSign size={14} />
+                              <span>Cobrar en Caja</span>
+                            </Link>
+                          )}
+
+                          {appt.status !== 'CONFIRMADA' && (
+                            <button
+                              onClick={() => handleStatusChange(appt.id, 'CONFIRMADA')}
+                              className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-semibold border border-sky-200 transition-colors min-h-[40px]"
+                            >
+                              <CheckCircle2 size={14} />
+                              <span>Confirmar Turno</span>
+                            </button>
+                          )}
+
+                          <Link
+                            to={`/odontograma?patientId=${appt.patientId}`}
+                            className={`${
+                              appt.status === 'CONFIRMADA' ? 'col-span-1' : 'col-span-1'
+                            } flex items-center justify-center gap-1 py-1.5 px-2 rounded-xl text-sky-700 bg-sky-50/70 hover:bg-sky-100 text-xs font-semibold border border-sky-200 transition-colors min-h-[36px]`}
+                            title="Ver mapa dental FDI"
+                          >
+                            <Smile size={14} />
+                            <span>Odontograma</span>
+                          </Link>
+
+                          {appt.status !== 'CANCELADA' && (
+                            <button
+                              onClick={() => handleStatusChange(appt.id, 'CANCELADA')}
+                              className="col-span-2 flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-xl text-slate-500 hover:text-rose-600 hover:bg-rose-50 text-[11px] font-medium transition-colors"
+                            >
+                              <X size={13} />
+                              <span>Cancelar Cita</span>
+                            </button>
+                          )}
+                        </>
                       )}
-
-                      {appt.status !== 'CANCELADA' && (
-                        <button
-                          onClick={() => handleStatusChange(appt.id, 'CANCELADA')}
-                          className={`${
-                            appt.status === 'CONFIRMADA' ? 'col-span-1' : 'col-span-2'
-                          } flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-xl text-slate-500 hover:text-rose-600 hover:bg-rose-50 text-[11px] font-medium transition-colors`}
-                        >
-                          <X size={13} />
-                          <span>Cancelar Cita</span>
-                        </button>
-                      )}
-                    </>
-                  )}
-                </div>
+                    </div>
+                  )
+                })()}
               </div>
             )
           })}
@@ -616,6 +749,59 @@ export const AppointmentListPage: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal to Delete Appointment from Firebase */}
+      {appointmentToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-100 space-y-4 animate-in zoom-in-95 duration-200">
+            <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto border border-rose-100">
+              <Trash2 size={24} />
+            </div>
+            <div className="text-center space-y-1.5">
+              <h3 className="text-base font-bold text-slate-900 m-0">¿Eliminar cita de la base de datos?</h3>
+              <p className="text-xs text-slate-500 m-0 leading-relaxed">
+                Esta acción eliminará la cita <strong className="text-slate-800">#{appointmentToDelete.id}</strong> ({appointmentToDelete.reason}) de Firebase Firestore definitivamente.
+              </p>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                disabled={deletingAppt}
+                onClick={() => setAppointmentToDelete(null)}
+                className="flex-1 py-2.5 px-3 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold transition-colors min-h-[42px]"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={deletingAppt}
+                onClick={async () => {
+                  setDeletingAppt(true)
+                  try {
+                    await api.deleteAppointment(appointmentToDelete.id)
+                    setAppointmentToDelete(null)
+                    await loadData(true)
+                  } catch (e: any) {
+                    console.error('[Error deleting appointment]:', e)
+                  } finally {
+                    setDeletingAppt(false)
+                  }
+                }}
+                className="flex-1 py-2.5 px-3 rounded-xl bg-rose-600 hover:bg-rose-700 active:scale-98 text-white text-xs font-semibold shadow-xs transition-all min-h-[42px] flex items-center justify-center gap-1.5"
+              >
+                {deletingAppt ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Eliminando...</span>
+                  </>
+                ) : (
+                  <span>Sí, eliminar</span>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

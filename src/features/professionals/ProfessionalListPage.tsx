@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Professional } from '../../types/models'
+import { api } from '../../services/api'
 import { UserCheck, Award, Phone, Shield, Stethoscope, CheckCircle2 } from 'lucide-react'
 
 export const ProfessionalListPage: React.FC = () => {
@@ -7,9 +8,9 @@ export const ProfessionalListPage: React.FC = () => {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch('/api/v1/professionals')
-      .then((r) => r.json())
+    api.getProfessionals()
       .then((data) => setProfessionals(Array.isArray(data) ? data : []))
+      .catch((err) => console.error(err))
       .finally(() => setLoading(false))
   }, [])
 

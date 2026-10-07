@@ -51,6 +51,11 @@ export interface Appointment {
   orderNumber?: number
   reason?: string
   notes?: string
+  isPaid?: boolean
+  paidAmount?: number
+  paymentId?: number
+  paymentMethod?: string
+  paymentReference?: string
   canceledAt?: string
   canceledReason?: string
   createdAt?: string
@@ -87,6 +92,7 @@ export interface Payment {
   id: number
   clinicalRecordId: number
   patientId?: number
+  appointmentId?: number
   amount: number
   currency: string
   paymentMethod: PaymentMethod

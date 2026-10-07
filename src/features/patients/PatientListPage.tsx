@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
-import { Patient } from '../../types'
+import { Link, useSearchParams } from 'react-router-dom'
+import { Patient, DocumentType } from '../../types'
 import { api } from '../../services/api'
 import {
   UserPlus,
@@ -17,12 +17,36 @@ import {
   ChevronRight,
   ExternalLink,
   RefreshCw,
+  AlertCircle,
+  CheckCircle2,
+  Save,
+  MapPin,
+  Trash2,
 } from 'lucide-react'
 
 export const PatientListPage: React.FC = () => {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [patients, setPatients] = useState<Patient[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
+  const [patientToDelete, setPatientToDelete] = useState<Patient | null>(null)
+  const [deleting, setDeleting] = useState(false)
+
+  // Modal State
+  const [showModal, setShowModal] = useState(false)
+  const [editingPatient, setEditingPatient] = useState<Patient | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [modalError, setModalError] = useState<string | null>(null)
+  const [formData, setFormData] = useState({
+    firstName: '',
+    lastName: '',
+    documentType: 'DNI' as DocumentType,
+    documentNumber: '',
+    birthDate: '',
+    phone: '',
+    email: '',
+    address: '',
+  })
 
   const fetchPatients = async (silent = false) => {
     try {
@@ -45,11 +69,140 @@ export const PatientListPage: React.FC = () => {
 
     window.addEventListener('focus', handleFocus)
     window.addEventListener('orthosmile:patient-created', handlePatientCreated)
+    window.addEventListener('orthosmile:patient-deleted', handleFocus)
     return () => {
       window.removeEventListener('focus', handleFocus)
       window.removeEventListener('orthosmile:patient-created', handlePatientCreated)
+      window.removeEventListener('orthosmile:patient-deleted', handleFocus)
     }
   }, [searchTerm])
+
+  // Handle URL query parameters (e.g. ?action=new)
+  useEffect(() => {
+    if (searchParams.get('action') === 'new' && !showModal) {
+      handleOpenCreate()
+    }
+  }, [searchParams])
+
+  // ESC key listener to close modal safely
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && showModal) {
+        handleCloseModal()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [showModal])
+
+  const handleOpenCreate = () => {
+    setEditingPatient(null)
+    setModalError(null)
+    setFormData({
+      firstName: '',
+      lastName: '',
+      documentType: 'DNI',
+      documentNumber: '',
+      birthDate: '',
+      phone: '',
+      email: '',
+      address: '',
+    })
+    setShowModal(true)
+  }
+
+  const handleOpenEdit = (patient: Patient) => {
+    setEditingPatient(patient)
+    setModalError(null)
+    setFormData({
+      firstName: patient.firstName || '',
+      lastName: patient.lastName || '',
+      documentType: (patient.documentType as DocumentType) || 'DNI',
+      documentNumber: patient.documentNumber || '',
+      birthDate: patient.birthDate ? patient.birthDate.split('T')[0] : '',
+      phone: patient.phone || '',
+      email: patient.email || '',
+      address: patient.address || '',
+    })
+    setShowModal(true)
+  }
+
+  const handleCloseModal = () => {
+    setShowModal(false)
+    setEditingPatient(null)
+    setModalError(null)
+    if (searchParams.has('action')) {
+      const nextParams = new URLSearchParams(searchParams)
+      nextParams.delete('action')
+      setSearchParams(nextParams, { replace: true })
+    }
+  }
+
+  const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target
+    if (name === 'documentType') {
+      let cleanedNum = formData.documentNumber
+      if (value === 'DNI') {
+        cleanedNum = cleanedNum.replace(/\D/g, '').slice(0, 8)
+      }
+      setFormData((prev) => ({
+        ...prev,
+        documentType: value as DocumentType,
+        documentNumber: cleanedNum,
+      }))
+      return
+    }
+
+    if (name === 'documentNumber' && formData.documentType === 'DNI') {
+      const numericOnly = value.replace(/\D/g, '').slice(0, 8)
+      setFormData((prev) => ({ ...prev, documentNumber: numericOnly }))
+      return
+    }
+
+    setFormData((prev) => ({ ...prev, [name]: value }))
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setModalError(null)
+
+    if (!formData.firstName.trim() || !formData.lastName.trim()) {
+      setModalError('Nombres y apellidos son campos obligatorios.')
+      return
+    }
+
+    if (formData.documentType === 'DNI') {
+      const cleanDni = formData.documentNumber.trim()
+      if (cleanDni.length !== 8 || !/^\d{8}$/.test(cleanDni)) {
+        setModalError('El DNI debe tener exactamente 8 dígitos numéricos válidos.')
+        return
+      }
+    } else if (!formData.documentNumber.trim()) {
+      setModalError('Ingrese el número de documento de identidad.')
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      const payload = {
+        ...formData,
+        birthDate: formData.birthDate || '1995-01-01',
+      }
+      if (editingPatient) {
+        await api.updatePatient(editingPatient.id, payload)
+      } else {
+        await api.createPatient(payload)
+      }
+
+      handleCloseModal()
+      await fetchPatients(true)
+      window.dispatchEvent(new CustomEvent('orthosmile:patient-created'))
+    } catch (err: any) {
+      setModalError(err?.message || 'Error al guardar el paciente en la base de datos.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -75,13 +228,14 @@ export const PatientListPage: React.FC = () => {
             <span className="hidden sm:inline">Actualizar</span>
           </button>
 
-          <Link
-            to="/pacientes/nuevo"
+          <button
+            type="button"
+            onClick={handleOpenCreate}
             className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 active:scale-[0.98] text-white text-sm font-semibold shadow-xs transition-all min-h-[44px]"
           >
             <UserPlus size={18} />
             <span>Nuevo Paciente</span>
-          </Link>
+          </button>
         </div>
       </div>
 
@@ -125,13 +279,14 @@ export const PatientListPage: React.FC = () => {
               ? `No hay resultados para "${searchTerm}". Intenta con otro criterio.`
               : 'Empieza registrando el primer paciente para abrir su expediente clínico.'}
           </p>
-          <Link
-            to="/pacientes/nuevo"
+          <button
+            type="button"
+            onClick={handleOpenCreate}
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-sky-600 hover:text-sky-700 pt-2"
           >
             <UserPlus size={16} />
             <span>Crear primer paciente</span>
-          </Link>
+          </button>
         </div>
       ) : (
         <>
@@ -161,15 +316,25 @@ export const PatientListPage: React.FC = () => {
                     </div>
                   </div>
 
-                  <span
-                    className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                      p.active !== false
-                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                        : 'bg-slate-100 text-slate-600 border border-slate-200'
-                    }`}
-                  >
-                    {p.active !== false ? 'Activo' : 'Inactivo'}
-                  </span>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span
+                      className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                        p.active !== false
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          : 'bg-slate-100 text-slate-600 border border-slate-200'
+                      }`}
+                    >
+                      {p.active !== false ? 'Activo' : 'Inactivo'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setPatientToDelete(p)}
+                      className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                      title="Eliminar de Firebase"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
                 </div>
 
                 {/* Patient Metadata */}
@@ -229,13 +394,15 @@ export const PatientListPage: React.FC = () => {
                     <FileText size={15} />
                     <span className="text-[9px] font-semibold mt-0.5">Historia</span>
                   </Link>
-                  <Link
-                    to={`/pacientes/${p.id}/editar`}
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEdit(p)}
                     className="flex flex-col items-center justify-center p-1.5 rounded-xl bg-slate-100 text-slate-700 text-center min-h-[44px] hover:bg-slate-200 active:scale-95 transition-all"
+                    title="Editar Datos"
                   >
                     <Edit2 size={15} />
                     <span className="text-[9px] font-semibold mt-0.5">Editar</span>
-                  </Link>
+                  </button>
                 </div>
               </div>
             ))}
@@ -296,6 +463,13 @@ export const PatientListPage: React.FC = () => {
                             <Calendar size={18} />
                           </Link>
                           <Link
+                            to={`/pagos?patientId=${p.id}&action=new`}
+                            className="p-1.5 rounded-lg text-emerald-700 hover:bg-emerald-100 bg-emerald-50/80 transition-colors"
+                            title="Cobrar en Caja / Registrar Pago"
+                          >
+                            <DollarSign size={18} />
+                          </Link>
+                          <Link
                             to={`/odontograma?patientId=${p.id}`}
                             className="p-1.5 rounded-lg text-sky-600 hover:bg-sky-50 transition-colors"
                             title="Ver Odontograma Dental"
@@ -309,13 +483,22 @@ export const PatientListPage: React.FC = () => {
                           >
                             <FileText size={18} />
                           </Link>
-                          <Link
-                            to={`/pacientes/${p.id}/editar`}
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEdit(p)}
                             className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors"
-                            title="Editar Datos"
+                            title="Editar Datos del Paciente"
                           >
                             <Edit2 size={16} />
-                          </Link>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setPatientToDelete(p)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-colors"
+                            title="Eliminar Paciente de la Base de Datos"
+                          >
+                            <Trash2 size={16} />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -325,6 +508,263 @@ export const PatientListPage: React.FC = () => {
             </div>
           </div>
         </>
+      )}
+
+      {/* Modal Dialog for Registering and Editing Patients */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 overflow-y-auto flex items-end sm:items-center justify-center p-0 sm:p-4">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity"
+            onClick={handleCloseModal}
+            aria-hidden="true"
+          />
+
+          {/* Modal Container */}
+          <div
+            className="relative bg-white w-full sm:max-w-xl rounded-t-3xl sm:rounded-2xl shadow-2xl border border-slate-200 flex flex-col max-h-[92vh] z-10 animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10 rounded-t-3xl sm:rounded-t-2xl">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-sky-50 text-sky-700 flex items-center justify-center font-bold">
+                  <UserPlus size={18} />
+                </div>
+                <div>
+                  <h2 className="text-base sm:text-lg font-bold text-slate-900 m-0">
+                    {editingPatient ? 'Editar Datos del Paciente' : 'Registrar Nuevo Paciente'}
+                  </h2>
+                  <p className="text-xs text-slate-500 m-0">
+                    {editingPatient
+                      ? 'Actualice la filiación y datos del expediente'
+                      : 'Complete los datos para abrir el expediente clínico'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleCloseModal}
+                className="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition-colors"
+                aria-label="Cerrar ventana"
+                title="Cerrar ventana (ESC)"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Error banner */}
+            {modalError && (
+              <div className="mx-4 sm:mx-6 mt-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-start gap-2">
+                <AlertCircle size={16} className="shrink-0 mt-0.5" />
+                <span>{modalError}</span>
+              </div>
+            )}
+
+            {/* Form */}
+            <form onSubmit={handleSubmit} className="overflow-y-auto p-4 sm:p-6 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Nombres <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    name="firstName"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:bg-white min-h-[44px]"
+                    placeholder="Ej: Juan Carlos"
+                    value={formData.firstName}
+                    onChange={handleFormChange}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Apellidos <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    name="lastName"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:bg-white min-h-[44px]"
+                    placeholder="Ej: Pérez García"
+                    value={formData.lastName}
+                    onChange={handleFormChange}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Tipo de Documento <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    name="documentType"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:bg-white min-h-[44px]"
+                    value={formData.documentType}
+                    onChange={handleFormChange}
+                  >
+                    <option value="DNI">DNI (Perú - 8 dígitos)</option>
+                    <option value="PASSPORT">Pasaporte</option>
+                    <option value="OTHER">Carné de Extranjería / Otro</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    N° de Documento <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    name="documentNumber"
+                    maxLength={formData.documentType === 'DNI' ? 8 : 20}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-sky-500 focus:bg-white min-h-[44px]"
+                    placeholder={formData.documentType === 'DNI' ? '8 dígitos (Ej: 71234567)' : 'N° de identificación'}
+                    value={formData.documentNumber}
+                    onChange={handleFormChange}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Fecha de Nacimiento
+                  </label>
+                  <input
+                    type="date"
+                    name="birthDate"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:bg-white min-h-[44px]"
+                    value={formData.birthDate}
+                    onChange={handleFormChange}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Teléfono / Celular (WhatsApp)
+                  </label>
+                  <input
+                    type="tel"
+                    name="phone"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:bg-white min-h-[44px]"
+                    placeholder="+51 987 654 321"
+                    value={formData.phone}
+                    onChange={handleFormChange}
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Correo Electrónico
+                  </label>
+                  <input
+                    type="email"
+                    name="email"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:bg-white min-h-[44px]"
+                    placeholder="paciente@ejemplo.com"
+                    value={formData.email}
+                    onChange={handleFormChange}
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Dirección Residencial
+                  </label>
+                  <input
+                    type="text"
+                    name="address"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:bg-white min-h-[44px]"
+                    placeholder="Av. Javier Prado 1234, San Isidro"
+                    value={formData.address}
+                    onChange={handleFormChange}
+                  />
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-2.5 sticky bottom-0 bg-white">
+                <button
+                  type="button"
+                  onClick={handleCloseModal}
+                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs sm:text-sm font-semibold transition-colors min-h-[44px]"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-sky-600 hover:bg-sky-700 active:scale-98 disabled:opacity-60 text-white rounded-xl text-xs sm:text-sm font-semibold shadow-xs transition-all min-h-[44px]"
+                >
+                  {submitting ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Guardando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save size={16} />
+                      <span>{editingPatient ? 'Actualizar Paciente' : 'Guardar Paciente'}</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal to Delete Patient from Firebase */}
+      {patientToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-100 space-y-4 animate-in zoom-in-95 duration-200">
+            <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto border border-rose-100">
+              <Trash2 size={24} />
+            </div>
+            <div className="text-center space-y-1.5">
+              <h3 className="text-base font-bold text-slate-900 m-0">¿Eliminar paciente de Firebase?</h3>
+              <p className="text-xs text-slate-500 m-0 leading-relaxed">
+                Esta acción eliminará definitivamente a <strong className="text-slate-800">{patientToDelete.firstName} {patientToDelete.lastName}</strong> de la base de datos de Firebase Firestore.
+              </p>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={() => setPatientToDelete(null)}
+                className="flex-1 py-2.5 px-3 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold transition-colors min-h-[42px]"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={async () => {
+                  setDeleting(true)
+                  try {
+                    await api.deletePatient(patientToDelete.id)
+                    setPatientToDelete(null)
+                    await fetchPatients(true)
+                  } catch (e: any) {
+                    console.error('[Error deleting patient]:', e)
+                  } finally {
+                    setDeleting(false)
+                  }
+                }}
+                className="flex-1 py-2.5 px-3 rounded-xl bg-rose-600 hover:bg-rose-700 active:scale-98 text-white text-xs font-semibold shadow-xs transition-all min-h-[42px] flex items-center justify-center gap-1.5"
+              >
+                {deleting ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Eliminando...</span>
+                  </>
+                ) : (
+                  <span>Sí, eliminar</span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

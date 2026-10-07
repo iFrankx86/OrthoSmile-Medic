@@ -32,8 +32,8 @@ export interface Patient {
   phone?: string
   address?: string
   active: boolean
-  createdAt: string
-  updatedAt: string
+  createdAt?: string
+  updatedAt?: string
 }
 
 export type AppointmentStatus = 'PROGRAMADA' | 'CONFIRMADA' | 'CANCELADA' | 'ATENDIDA' | 'NO_ASISTIO'
@@ -49,6 +49,11 @@ export interface Appointment {
   orderNumber?: number
   reason?: string
   notes?: string
+  isPaid?: boolean
+  paidAmount?: number
+  paymentId?: number
+  paymentMethod?: string
+  paymentReference?: string
   canceledAt?: string
   canceledReason?: string
   createdAt: string
@@ -71,16 +76,17 @@ export interface ClinicalRecord {
 export interface Payment {
   id: number
   clinicalRecordId?: number
-  patientId: number
+  patientId?: number
+  appointmentId?: number
   amount: number
   currency: string
-  paymentMethod: 'EFECTIVO' | 'CARTERA_DIGITAL' | 'YAPE_PLIN' | 'DEPOSITO_BBVA' | 'TARJETA' | 'TRANSFERENCIA'
+  paymentMethod: 'EFECTIVO' | 'CARTERA_DIGITAL' | 'YAPE_PLIN' | 'DEPOSITO_BBVA' | 'TARJETA' | 'TRANSFERENCIA' | 'YAPE' | 'PLIN' | 'OTRO'
   status: 'PENDIENTE' | 'COMPLETADO' | 'PAGADO' | 'ANULADO'
   reference?: string
   notes?: string
   paidAt?: string
-  createdAt: string
-  updatedAt: string
+  createdAt?: string
+  updatedAt?: string
 }
 
 export interface AuditLog {

@@ -316,9 +316,29 @@ export function ClinicalHistoryPage() {
                   <div className="space-y-4">
                     {records.map((rec, idx) => {
                       const sessionNumber = idx + 1
-                      const matchingPayment = patientPayments.find(
-                        (p) => String(p.clinicalRecordId) === String(rec.id)
-                      )
+                      const matchingPayment = patientPayments.find((p, pIdx) => {
+                        // 1. Direct clinical record ID match
+                        if (String(p.clinicalRecordId) === String(rec.id)) return true
+                        // 2. Direct appointment ID match
+                        if (
+                          rec.appointmentId &&
+                          (String(p.clinicalRecordId) === String(rec.appointmentId) ||
+                            String((p as any).appointmentId) === String(rec.appointmentId))
+                        )
+                          return true
+                        // 3. If there is a payment for this patient and single record
+                        if (patientPayments.length === 1 && records.length === 1) return true
+                        // 4. Chronological 1-to-1 match for this patient
+                        if (pIdx === idx && patientPayments.length >= records.length) return true
+                        // 5. Notes text match
+                        if (
+                          p.notes &&
+                          rec.chiefComplaint &&
+                          p.notes.toLowerCase().includes(rec.chiefComplaint.trim().toLowerCase())
+                        )
+                          return true
+                        return false
+                      })
 
                       return (
                         <div
@@ -402,17 +422,36 @@ export function ClinicalHistoryPage() {
                               </div>
                             )}
 
-                            <button
-                              onClick={() =>
-                                navigate(
-                                  `/pagos?action=new&clinicalRecordId=${rec.id}&patientId=${selectedPatient.id}&amount=80`
-                                )
-                              }
-                              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold shadow-xs transition-colors min-h-[44px]"
-                            >
-                              <DollarSign size={14} />
-                              <span>{matchingPayment ? 'Emitir Nuevo Cobro' : 'Cobrar Atención'}</span>
-                            </button>
+                            <div className="flex items-center gap-2">
+                              {matchingPayment && (
+                                <button
+                                  onClick={() =>
+                                    navigate(`/pagos?patientId=${selectedPatient.id}`)
+                                  }
+                                  className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 rounded-xl text-xs font-semibold shadow-2xs transition-colors min-h-[44px]"
+                                  title="Ver boleta emitida en caja"
+                                >
+                                  <Receipt size={14} />
+                                  <span>Ver Boleta</span>
+                                </button>
+                              )}
+
+                              <button
+                                onClick={() =>
+                                  navigate(
+                                    `/pagos?action=new&clinicalRecordId=${rec.id}&appointmentId=${rec.appointmentId || ''}&patientId=${selectedPatient.id}&amount=80`
+                                  )
+                                }
+                                className={`inline-flex items-center justify-center gap-1.5 px-4 py-2 text-white rounded-xl text-xs font-semibold shadow-xs transition-colors min-h-[44px] ${
+                                  matchingPayment
+                                    ? 'bg-slate-700 hover:bg-slate-800'
+                                    : 'bg-emerald-600 hover:bg-emerald-700'
+                                }`}
+                              >
+                                <DollarSign size={14} />
+                                <span>{matchingPayment ? 'Nuevo Abono' : 'Cobrar Atención (S/ 80)'}</span>
+                              </button>
+                            </div>
                           </div>
                         </div>
                       )

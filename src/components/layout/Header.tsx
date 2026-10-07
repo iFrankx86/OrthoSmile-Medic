@@ -1,7 +1,8 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
-import { LogOut, Menu, Activity, Shield, Stethoscope, UserCheck, FileText } from 'lucide-react'
+import { useNotifications } from '../../context/NotificationContext'
+import { LogOut, Menu, Activity, Shield, Stethoscope, UserCheck, FileText, Bell } from 'lucide-react'
 
 interface HeaderProps {
   onToggleMobileSidebar?: () => void
@@ -9,6 +10,7 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({ onToggleMobileSidebar }) => {
   const { user, logout } = useAuth()
+  const { unreadCount, setIsOpen } = useNotifications()
 
   const getRolePresentation = (role?: string) => {
     switch (role) {
@@ -67,10 +69,7 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileSidebar }) => {
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-bold text-lg tracking-tight text-slate-900 font-sans">
-                  OrthoSmile
-                </span>
-                <span className="text-[10px] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-200/60">
-                  Medic v1.0
+                  OrthoSmile Medic
                 </span>
               </div>
               <p className="text-[11px] text-slate-600 hidden sm:block leading-none">
@@ -100,6 +99,25 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileSidebar }) => {
               <span className="hidden sm:inline">Informe Técnico</span>
             </Link>
           )}
+
+          {/* Alert & Notification Bell Icon Button */}
+          <button
+            type="button"
+            onClick={() => setIsOpen(true)}
+            className="relative p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors focus-visible:ring-2 focus-visible:ring-sky-500"
+            title="Panel de Alertas: Citas próximas y cobros pendientes"
+            aria-label="Ver notificaciones y alertas clínicas"
+          >
+            <Bell size={19} />
+            {unreadCount > 0 && (
+              <span className="absolute top-1 right-1 flex h-4 w-4">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-4 w-4 bg-rose-600 text-white text-[9px] font-extrabold items-center justify-center">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              </span>
+            )}
+          </button>
 
           <div className="flex items-center gap-2.5 pl-2 sm:border-l sm:border-slate-200">
             <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 font-semibold text-xs shrink-0">

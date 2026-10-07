@@ -4,7 +4,7 @@ import path from 'path'
 import fs from 'fs'
 import { query, isCloudDatabaseConnected } from '../db/postgres.js'
 import { db } from '../lib/firebase.js'
-import { collection, getDocs, doc, setDoc, updateDoc } from 'firebase/firestore'
+import { collection, getDocs, doc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore'
 import {
   checkLoginRateLimit,
   recordLoginFailure,
@@ -116,148 +116,10 @@ export const professionals: Professional[] = [
   { id: 1, userId: 2, firstName: 'Manuel Gustavo', lastName: 'Chavez Sevillano', licenseNumber: 'COP-18452', specialty: 'Orthodontist, MSc, PhD', phone: '+51 987 654 321', active: true },
 ]
 
-export const patients: Patient[] = [
-  {
-    id: 1,
-    firstName: 'Juan',
-    lastName: 'Castro Silva',
-    documentType: 'DNI',
-    documentNumber: '72345678',
-    birthDate: '1995-04-12',
-    email: 'juan.castro@gmail.com',
-    phone: '+51 945 112 233',
-    address: 'Av. Javier Prado Este 2450, Lima',
-    active: true,
-    createdAt: new Date(Date.now() - 30 * 86400000).toISOString(),
-    updatedAt: new Date(Date.now() - 30 * 86400000).toISOString(),
-  },
-  {
-    id: 2,
-    firstName: 'Lucía',
-    lastName: 'Ramírez Vega',
-    documentType: 'DNI',
-    documentNumber: '45892147',
-    birthDate: '1990-11-23',
-    email: 'lucia.ramirez@hotmail.com',
-    phone: '+51 988 223 344',
-    address: 'Calle Los Pinos 142, Miraflores',
-    active: true,
-    createdAt: new Date(Date.now() - 20 * 86400000).toISOString(),
-    updatedAt: new Date(Date.now() - 20 * 86400000).toISOString(),
-  },
-  {
-    id: 3,
-    firstName: 'Mateo',
-    lastName: 'Fernández Soto',
-    documentType: 'DNI',
-    documentNumber: '78912345',
-    birthDate: '2002-07-08',
-    email: 'mateo.fs@gmail.com',
-    phone: '+51 977 334 455',
-    address: 'Jr. Las Palmeras 310, San Isidro',
-    active: true,
-    createdAt: new Date(Date.now() - 15 * 86400000).toISOString(),
-    updatedAt: new Date(Date.now() - 15 * 86400000).toISOString(),
-  },
-  {
-    id: 4,
-    firstName: 'Valeria',
-    lastName: 'Torres Benítez',
-    documentType: 'PASSPORT',
-    documentNumber: 'P8923412',
-    birthDate: '1988-02-15',
-    email: 'v.torres@outlook.com',
-    phone: '+51 966 445 566',
-    address: 'Av. Arequipa 1890, Lince',
-    active: true,
-    createdAt: new Date(Date.now() - 10 * 86400000).toISOString(),
-    updatedAt: new Date(Date.now() - 10 * 86400000).toISOString(),
-  },
-]
-
-export const appointments: Appointment[] = [
-  {
-    id: 1,
-    patientId: 1,
-    professionalId: 1,
-    scheduledStart: formatISO(new Date(now.getTime() + 2 * 3600 * 1000)),
-    scheduledEnd: formatISO(new Date(now.getTime() + 3 * 3600 * 1000)),
-    status: 'CONFIRMADA',
-    reason: 'Evaluación para brackets metálicos',
-    notes: 'Paciente refiere molestia al masticar',
-    createdAt: formatISO(new Date(now.getTime() - 24 * 3600 * 1000)),
-    updatedAt: formatISO(new Date(now.getTime() - 24 * 3600 * 1000)),
-  },
-  {
-    id: 2,
-    patientId: 2,
-    professionalId: 2,
-    scheduledStart: formatISO(new Date(now.getTime() + 24 * 3600 * 1000)),
-    scheduledEnd: formatISO(new Date(now.getTime() + 25 * 3600 * 1000)),
-    status: 'PROGRAMADA',
-    reason: 'Limpieza y profilaxis profunda',
-    notes: 'Primera sesión anual',
-    createdAt: formatISO(new Date(now.getTime() - 12 * 3600 * 1000)),
-    updatedAt: formatISO(new Date(now.getTime() - 12 * 3600 * 1000)),
-  },
-  {
-    id: 3,
-    patientId: 3,
-    professionalId: 1,
-    scheduledStart: formatISO(new Date(now.getTime() - 48 * 3600 * 1000)),
-    scheduledEnd: formatISO(new Date(now.getTime() - 47 * 3600 * 1000)),
-    status: 'ATENDIDA',
-    reason: 'Control mensual de ortodoncia',
-    notes: 'Se cambiaron arcos y ligas',
-    createdAt: formatISO(new Date(now.getTime() - 50 * 3600 * 1000)),
-    updatedAt: formatISO(new Date(now.getTime() - 47 * 3600 * 1000)),
-  },
-  {
-    id: 4,
-    patientId: 4,
-    professionalId: 1,
-    scheduledStart: formatISO(new Date(now.getTime() + 72 * 3600 * 1000)),
-    scheduledEnd: formatISO(new Date(now.getTime() + 73 * 3600 * 1000)),
-    status: 'PROGRAMADA',
-    reason: 'Extracción de tercera molar',
-    notes: 'Traer radiografía panorámica',
-    createdAt: formatISO(new Date(now.getTime() - 6 * 3600 * 1000)),
-    updatedAt: formatISO(new Date(now.getTime() - 6 * 3600 * 1000)),
-  },
-]
-
-export const clinicalRecords: ClinicalRecord[] = [
-  {
-    id: 1,
-    appointmentId: 3,
-    patientId: 3,
-    professionalId: 1,
-    attentionDate: formatISO(new Date(now.getTime() - 47 * 3600 * 1000)),
-    chiefComplaint: 'Ajuste de brackets superior e inferior',
-    diagnosis: 'Maloclusión Clase II División 1',
-    treatmentPlan: 'Tratamiento ortodóncico correctivo con aparatología fija (24 meses)',
-    clinicalNotes: 'Se colocaron arcos de NiTi 0.016 superior e inferior. Se indicaron elásticos intermaxilares 3/16 medianos para uso nocturno.',
-    createdAt: formatISO(new Date(now.getTime() - 47 * 3600 * 1000)),
-    updatedAt: formatISO(new Date(now.getTime() - 47 * 3600 * 1000)),
-  },
-]
-
-export const payments: Payment[] = [
-  {
-    id: 1,
-    clinicalRecordId: 1,
-    patientId: 3,
-    amount: 150.0,
-    currency: 'PEN',
-    paymentMethod: 'TRANSFERENCIA',
-    status: 'PAGADO',
-    reference: 'OP-459201',
-    notes: 'Mensualidad ortodoncia mes 4',
-    paidAt: formatISO(new Date(now.getTime() - 47 * 3600 * 1000)),
-    createdAt: formatISO(new Date(now.getTime() - 47 * 3600 * 1000)),
-    updatedAt: formatISO(new Date(now.getTime() - 47 * 3600 * 1000)),
-  },
-]
+export const patients: Patient[] = []
+export const appointments: Appointment[] = []
+export const clinicalRecords: ClinicalRecord[] = []
+export const payments: Payment[] = []
 
 export const auditLogs: AuditLog[] = [
   {
@@ -508,56 +370,33 @@ apiRouter.get('/patients', async (req: Request, res: Response) => {
       })
     })
 
-    if (list.length > 0) {
-      list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime() || Number(b.id) - Number(a.id))
-      if (q) {
-        const filtered = list.filter(
-          (p) =>
-            (p.firstName || '').toLowerCase().includes(q) ||
-            (p.lastName || '').toLowerCase().includes(q) ||
-            (p.documentNumber || '').includes(q)
-        )
-        return res.json(filtered)
-      }
-      return res.json(list)
+    list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime() || Number(b.id) - Number(a.id))
+    if (q) {
+      const filtered = list.filter(
+        (p) =>
+          (p.firstName || '').toLowerCase().includes(q) ||
+          (p.lastName || '').toLowerCase().includes(q) ||
+          (p.documentNumber || '').includes(q)
+      )
+      return res.json(filtered)
     }
+    return res.json(list)
   } catch (err) {
     console.warn('[Firestore Server Query Warning]:', err)
+    return res.json([])
   }
+})
 
-  // 2. Fallback: PostgreSQL
-  if (isCloudDatabaseConnected()) {
-    try {
-      let queryStr = `SELECT id, first_name as "firstName", last_name as "lastName",
-                             document_type as "documentType", document_number as "documentNumber",
-                             birth_date as "birthDate", email, phone, address, active,
-                             created_at as "createdAt", updated_at as "updatedAt"
-                      FROM patients`
-      const params: any[] = []
-      if (q) {
-        queryStr += ` WHERE LOWER(first_name) LIKE $1 OR LOWER(last_name) LIKE $1 OR document_number LIKE $1`
-        params.push(`%${q}%`)
-      }
-      queryStr += ` ORDER BY id DESC`
-      const rows = await query<any>(queryStr, params)
-      return res.json(rows)
-    } catch (err) {
-      console.error('[Supabase Patients Error]:', err)
-    }
+apiRouter.delete('/patients/:id', async (req: Request, res: Response) => {
+  const id = String(req.params.id)
+  try {
+    await deleteDoc(doc(db, 'patients', id))
+    addAudit('DELETE', 'PATIENT', Number(id) || id, 'admin', `Paciente #${id} eliminado`)
+    return res.json({ success: true, id })
+  } catch (err: any) {
+    console.error('[Delete Patient Error]:', err)
+    return res.status(500).json({ error: err?.message || 'Error al eliminar paciente' })
   }
-
-  // 3. Fallback: In-memory
-  const sorted = [...patients].sort((a, b) => b.id - a.id)
-  if (q) {
-    const filtered = sorted.filter(
-      (p) =>
-        p.firstName.toLowerCase().includes(q) ||
-        p.lastName.toLowerCase().includes(q) ||
-        p.documentNumber.includes(q)
-    )
-    return res.json(filtered)
-  }
-  return res.json(sorted)
 })
 
 apiRouter.post('/patients', async (req: Request, res: Response) => {
@@ -627,29 +466,24 @@ apiRouter.get('/appointments', async (_req: Request, res: Response) => {
         updatedAt: data.updatedAt,
       })
     })
-    if (list.length > 0) {
-      list.sort((a, b) => new Date(a.scheduledStart).getTime() - new Date(b.scheduledStart).getTime())
-      return res.json(list)
-    }
+    list.sort((a, b) => new Date(a.scheduledStart).getTime() - new Date(b.scheduledStart).getTime())
+    return res.json(list)
   } catch (err) {
     console.warn('[Firestore Server Query Appointments Warning]:', err)
+    return res.json([])
   }
+})
 
-  // 2. Fallback: PostgreSQL
-  if (isCloudDatabaseConnected()) {
-    try {
-      const rows = await query<any>(
-        `SELECT id, patient_id as "patientId", professional_id as "professionalId",
-                scheduled_start as "scheduledStart", scheduled_end as "scheduledEnd",
-                status, reason, notes, created_at as "createdAt", updated_at as "updatedAt"
-         FROM appointments ORDER BY scheduled_start ASC`
-      )
-      return res.json(rows)
-    } catch (err) {
-      console.error('[Supabase Appointments Error]:', err)
-    }
+apiRouter.delete('/appointments/:id', async (req: Request, res: Response) => {
+  const id = String(req.params.id)
+  try {
+    await deleteDoc(doc(db, 'appointments', id))
+    addAudit('DELETE', 'APPOINTMENT', Number(id) || id, 'admin', `Cita #${id} eliminada`)
+    return res.json({ success: true, id })
+  } catch (err: any) {
+    console.error('[Delete Appointment Error]:', err)
+    return res.status(500).json({ error: err?.message || 'Error al eliminar cita' })
   }
-  return res.json(appointments)
 })
 
 apiRouter.post('/appointments', async (req: Request, res: Response) => {
