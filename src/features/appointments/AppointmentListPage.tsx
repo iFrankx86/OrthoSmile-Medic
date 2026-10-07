@@ -97,16 +97,39 @@ export const AppointmentListPage: React.FC = () => {
   useEffect(() => {
     const patientIdParam = searchParams.get('patientId')
     const actionParam = searchParams.get('action')
-    if (patientIdParam || actionParam === 'new') {
+    if ((patientIdParam || actionParam === 'new') && !showModal) {
       setShowModal(true)
       setNewAppt((prev) => ({
         ...prev,
         patientId: patientIdParam ? String(patientIdParam) : prev.patientId,
-        professionalId: prev.professionalId || (professionals[0]?.id ? String(professionals[0].id) : '1'),
+        professionalId: prev.professionalId || (professionals.length > 0 ? String(professionals[0].id) : '1'),
       }))
-      loadData(true)
     }
-  }, [searchParams, professionals])
+  }, [searchParams])
+
+  // ESC key listener to close modal safely
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && showModal) {
+        handleCloseModal()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [showModal, searchParams])
+
+  const handleCloseModal = () => {
+    setShowModal(false)
+    setErrorMsg(null)
+    setPatientSearch('')
+    // Clear URL search params so it never re-triggers or gets stuck in a loop
+    if (searchParams.has('action') || searchParams.has('patientId')) {
+      const nextParams = new URLSearchParams(searchParams)
+      nextParams.delete('action')
+      nextParams.delete('patientId')
+      setSearchParams(nextParams, { replace: true })
+    }
+  }
 
   const filteredPatients = useMemo(() => {
     let result = patients
@@ -181,7 +204,7 @@ export const AppointmentListPage: React.FC = () => {
         body: JSON.stringify(payload),
       }).catch(() => {})
 
-      setShowModal(false)
+      handleCloseModal()
       setNewAppt({ patientId: '', professionalId: '', scheduledStart: '', reason: '', notes: '' })
       await loadData(true)
     } catch (err: any) {
@@ -577,15 +600,18 @@ export const AppointmentListPage: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
           <div
             className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs transition-opacity"
-            onClick={() => setShowModal(false)}
+            onClick={handleCloseModal}
+            aria-hidden="true"
           />
 
-          <div className="relative bg-white rounded-t-3xl sm:rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-2xl z-10 max-h-[90vh] overflow-y-auto">
+          <div className="relative bg-white rounded-t-3xl sm:rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-2xl z-10 max-h-[90vh] overflow-y-auto animate-in slide-in-from-bottom-4 duration-200">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
               <h2 className="font-bold text-base sm:text-lg text-slate-900 m-0">Agendar Nueva Cita</h2>
               <button
-                onClick={() => setShowModal(false)}
-                className="p-1 rounded-full text-slate-400 hover:text-slate-600"
+                type="button"
+                onClick={handleCloseModal}
+                className="p-2 -mr-1 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 min-w-[44px] min-h-[44px] flex items-center justify-center transition-colors"
+                aria-label="Cerrar ventana"
               >
                 <X size={20} />
               </button>
@@ -736,8 +762,8 @@ export const AppointmentListPage: React.FC = () => {
               <div className="pt-3 border-t border-slate-100 flex flex-col-reverse sm:flex-row justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setShowModal(false)}
-                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 text-sm font-semibold hover:bg-slate-50 min-h-[44px]"
+                  onClick={handleCloseModal}
+                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl border border-slate-200 text-slate-700 text-sm font-semibold hover:bg-slate-50 transition-colors min-h-[44px]"
                 >
                   Cancelar
                 </button>
