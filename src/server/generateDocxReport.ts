@@ -546,6 +546,13 @@ export async function generateTechnicalReportDocx(): Promise<Buffer> {
               new TextRun('Eliminación de bibliotecas conflictivas de estilos, consolidando todo el sistema de diseño sobre Tailwind CSS nativo.'),
             ],
           }),
+          new Paragraph({
+            bullet: { level: 0 },
+            children: [
+              new TextRun({ text: 'Navegación Modal Blindada y Sin Trabas: ', bold: true }),
+              new TextRun('Desvinculación síncrona de URLSearchParams, soporte de cierre con tecla Escape, hitboxes táctiles de 44x44px y prevención de congelamientos en toda la suite clínica.'),
+            ],
+          }),
 
           // 7. Conclusiones
           new Paragraph({

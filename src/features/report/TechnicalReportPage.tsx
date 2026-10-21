@@ -1,4 +1,5 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   FileDown,
   Copy,
@@ -13,12 +14,34 @@ import {
   Code2,
   Activity,
   Award,
+  ArrowLeft,
+  X,
 } from 'lucide-react'
 
 export const TechnicalReportPage: React.FC = () => {
+  const navigate = useNavigate()
   const [downloading, setDownloading] = useState(false)
   const [copied, setCopied] = useState(false)
   const [downloadSuccess, setDownloadSuccess] = useState(false)
+
+  // ESC key listener to exit report view safely
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        handleGoBack()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
+
+  const handleGoBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1)
+    } else {
+      navigate('/pacientes')
+    }
+  }
 
   // Direct client-side blob download (100% reliable inside iframes and sandboxes)
   const handleDownloadDocx = async () => {
@@ -65,7 +88,25 @@ export const TechnicalReportPage: React.FC = () => {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
+      {/* Top Navigation & Exit Bar */}
+      <div className="flex items-center justify-between">
+        <button
+          type="button"
+          onClick={handleGoBack}
+          className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-white border border-slate-200/90 text-slate-700 hover:text-slate-900 hover:bg-slate-50 text-xs sm:text-sm font-semibold shadow-2xs transition-all min-h-[44px] cursor-pointer"
+          aria-label="Cerrar ventana y volver"
+          title="Cerrar ventana (ESC)"
+        >
+          <ArrowLeft size={16} />
+          <span>Volver / Cerrar ventana</span>
+        </button>
+
+        <span className="text-xs text-slate-400 font-medium hidden sm:inline">
+          Presione <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 font-mono text-[10px]">ESC</kbd> o el botón para retornar
+        </span>
+      </div>
+
       {/* Top Action Bar (Mobile Sticky-friendly) */}
       <div className="bg-white rounded-2xl border border-slate-200/80 p-4 sm:p-6 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -169,7 +210,7 @@ export const TechnicalReportPage: React.FC = () => {
             Sistema Integral de Gestión Clínica Odontológica y Ortodoncia
           </p>
           <div className="pt-2 flex flex-wrap items-center justify-center gap-3 text-xs text-slate-400">
-            <span>Fecha: 29 de Septiembre de 2026</span>
+            <span>Fecha: 21 de Octubre de 2026</span>
             <span>·</span>
             <span className="text-emerald-600 font-medium">Auditoría QA/QX Aprobada</span>
           </div>
@@ -274,8 +315,9 @@ export const TechnicalReportPage: React.FC = () => {
 {`src/
 ├── app/                  # Proveedores de contexto global y notificaciones (AppProviders)
 ├── components/
-│   └── layout/          # MainLayout, Header, Sidebar y MobileBottomNav (Navegación táctil)
-├── context/             # AuthContext (Sesión, RBAC, Firebase listeners y logs diagnósticos)
+│   ├── layout/          # MainLayout, Header, Sidebar y MobileBottomNav (Navegación táctil)
+│   └── notifications/   # Panel de alertas de citas del día y cobros pendientes (NotificationPanel)
+├── context/             # AuthContext (Sesión y RBAC) y NotificationContext (Alertas reactivas)
 ├── features/            # Módulos clínicos de negocio
 │   ├── appointments/    # Agenda de citas con filtros y cambios de estado (AppointmentListPage)
 │   ├── auth/            # Página de autenticación segura con roles (LoginPage)
@@ -353,6 +395,33 @@ export const TechnicalReportPage: React.FC = () => {
                 El odontograma digital modela con exactitud los cuadrantes 1 al 4 (18-11, 21-28, 48-41, 31-38). Integra segmentación visual de arcos (Maxilar Superior e Inferior) para manipulación en teléfonos, permitiendo asignar estados de Caries, Obturado/Resina, Ausente, Corona y Endodoncia con cálculo automático de hallazgos patológicos.
               </p>
             </div>
+
+            <div className="p-3.5 rounded-xl border border-slate-200/80 bg-slate-50/50">
+              <h4 className="font-bold text-slate-900 text-sm mb-1">
+                7. Sistema Proactivo de Alertas Clínicas y Eventos en Tiempo Real
+              </h4>
+              <p className="text-xs leading-relaxed m-0">
+                Mediante el `NotificationContext` y un bus de eventos personalizado (`orthosmile:*`), el sistema detecta de forma reactiva las citas del día, pacientes en sala de espera y atenciones médicas concluidas que aún carecen de pago en caja, alertando al personal mediante una campana interactiva con insignias numéricas y cajón lateral con acceso directo a cobro.
+              </p>
+            </div>
+
+            <div className="p-3.5 rounded-xl border border-slate-200/80 bg-slate-50/50">
+              <h4 className="font-bold text-slate-900 text-sm mb-1">
+                8. Persistencia Limpia en Firestore y Cero Datos Residuales
+              </h4>
+              <p className="text-xs leading-relaxed m-0">
+                Sincronización pura con Google Cloud Firebase Firestore. Se erradicó cualquier inyección de datos simulados en colecciones vacías (`list.length === 0`), garantizando que cuando el usuario limpia o elimina registros en Firestore, la interfaz refleje inmediatamente el estado real. Incorpora eliminación física mediante `deleteDoc` con confirmaciones modales y registro inmutable en `audit_logs`.
+              </p>
+            </div>
+
+            <div className="p-3.5 rounded-xl border border-slate-200/80 bg-slate-50/50">
+              <h4 className="font-bold text-slate-900 text-sm mb-1">
+                9. Navegación Blindada de Ventanas Modales y Erradicación de Trabas al Cerrar
+              </h4>
+              <p className="text-xs leading-relaxed m-0">
+                Para prevenir bloqueos de renderizado, congelamientos de interfaz y bucles de reactivación en dispositivos móviles y de escritorio, todos los modales de la suite clínica (Agendamiento de Citas, Registro de Pacientes, Cobro en Caja, Atención Clínica y Odontograma FDI) cuentan con desvinculación atómica inmediata de los parámetros `URLSearchParams` al abrirse y cierre síncrono controlado (`setShowModal(false)`). Se incorporó prevención de propagación de eventos (`stopPropagation`), soporte universal para la tecla Escape, cierres mediante backdrop táctil y hitboxes ergonómicos de 44×44px que garantizan una experiencia fluida y sin trabas.
+              </p>
+            </div>
           </div>
         </section>
 
@@ -364,9 +433,10 @@ export const TechnicalReportPage: React.FC = () => {
           </h3>
           <ul className="text-xs sm:text-sm text-slate-600 space-y-2 pl-5 list-disc">
             <li><strong>Contraste WCAG AA:</strong> Colores de texto y fondos calculados para superar la relación de contraste 4.5:1.</li>
-            <li><strong>Erradicación de `window.alert`:</strong> Toda la retroalimentación se transmite mediante banners no intrusivos o estados de formulario integrados.</li>
+            <li><strong>Erradicación de `window.alert`:</strong> Toda la retroalimentación se transmite mediante modales no invasivos y banners de validación contextuales.</li>
             <li><strong>Cifras Tabulares (`font-variant-numeric: tabular-nums`):</strong> Alineación decimal estricta en importes de caja (S/), fechas y DNI para evitar saltos visuales.</li>
-            <li><strong>Zero Broken Images / Fallbacks:</strong> Contenedores de reemplazo estilizados con iconos SVG ante caídas de red.</li>
+            <li><strong>Hitboxes Táctiles Ergonómicos:</strong> Botones y cierres de modal con dimensiones mínimas de 44×44 píxeles para uso con guantes médicos en pantallas táctiles.</li>
+            <li><strong>Trazabilidad y Cero Falsos Positivos:</strong> Sincronización atómica entre el cobro en caja y la marca de pago en la cita correspondiente en Firestore.</li>
           </ul>
         </section>
 

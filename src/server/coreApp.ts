@@ -710,21 +710,20 @@ apiRouter.get('/database/tables', async (_req: Request, res: Response) => {
 // 9. Technical Report Word (.docx) Download Endpoint
 apiRouter.get('/download-technical-report', async (_req: Request, res: Response) => {
   try {
-    const filePath = path.join(process.cwd(), 'public', 'Informe_Tecnico_OrthoSmile_Medic.docx')
-    if (fs.existsSync(filePath)) {
-      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
-      res.setHeader('Content-Disposition', 'attachment; filename="Informe_Tecnico_OrthoSmile_Medic.docx"')
-      return res.sendFile(filePath)
-    }
-
-    // Dynamic fallback generation
+    // Dynamic fresh generation with latest updates and metrics
     const { generateTechnicalReportDocx } = await import('./generateDocxReport')
     const buffer = await generateTechnicalReportDocx()
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
     res.setHeader('Content-Disposition', 'attachment; filename="Informe_Tecnico_OrthoSmile_Medic.docx"')
     return res.send(buffer)
   } catch (err) {
-    console.error('[Report Download Error]:', err)
+    console.error('[Report Dynamic Generation Error]:', err)
+    const filePath = path.join(process.cwd(), 'public', 'Informe_Tecnico_OrthoSmile_Medic.docx')
+    if (fs.existsSync(filePath)) {
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+      res.setHeader('Content-Disposition', 'attachment; filename="Informe_Tecnico_OrthoSmile_Medic.docx"')
+      return res.sendFile(filePath)
+    }
     return res.status(500).json({ error: 'No se pudo generar el informe técnico.' })
   }
 })

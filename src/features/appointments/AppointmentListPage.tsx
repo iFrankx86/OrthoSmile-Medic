@@ -97,15 +97,20 @@ export const AppointmentListPage: React.FC = () => {
   useEffect(() => {
     const patientIdParam = searchParams.get('patientId')
     const actionParam = searchParams.get('action')
-    if ((patientIdParam || actionParam === 'new') && !showModal) {
+    if (patientIdParam || actionParam === 'new') {
       setShowModal(true)
       setNewAppt((prev) => ({
         ...prev,
         patientId: patientIdParam ? String(patientIdParam) : prev.patientId,
         professionalId: prev.professionalId || (professionals.length > 0 ? String(professionals[0].id) : '1'),
       }))
+      // Clear URL params immediately upon opening so closing never gets trapped in a re-trigger loop
+      const nextParams = new URLSearchParams(searchParams)
+      nextParams.delete('action')
+      nextParams.delete('patientId')
+      setSearchParams(nextParams, { replace: true })
     }
-  }, [searchParams])
+  }, [searchParams, professionals])
 
   // ESC key listener to close modal safely
   useEffect(() => {
@@ -116,13 +121,12 @@ export const AppointmentListPage: React.FC = () => {
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [showModal, searchParams])
+  }, [showModal])
 
   const handleCloseModal = () => {
     setShowModal(false)
     setErrorMsg(null)
     setPatientSearch('')
-    // Clear URL search params so it never re-triggers or gets stuck in a loop
     if (searchParams.has('action') || searchParams.has('patientId')) {
       const nextParams = new URLSearchParams(searchParams)
       nextParams.delete('action')
@@ -604,14 +608,18 @@ export const AppointmentListPage: React.FC = () => {
             aria-hidden="true"
           />
 
-          <div className="relative bg-white rounded-t-3xl sm:rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-2xl z-10 max-h-[90vh] overflow-y-auto animate-in slide-in-from-bottom-4 duration-200">
+          <div
+            className="relative bg-white rounded-t-3xl sm:rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-2xl z-10 max-h-[90vh] overflow-y-auto animate-in slide-in-from-bottom-4 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
               <h2 className="font-bold text-base sm:text-lg text-slate-900 m-0">Agendar Nueva Cita</h2>
               <button
                 type="button"
                 onClick={handleCloseModal}
-                className="p-2 -mr-1 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 min-w-[44px] min-h-[44px] flex items-center justify-center transition-colors"
+                className="p-2 -mr-1 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 min-w-[44px] min-h-[44px] flex items-center justify-center transition-colors cursor-pointer"
                 aria-label="Cerrar ventana"
+                title="Cerrar ventana (ESC)"
               >
                 <X size={20} />
               </button>

@@ -129,11 +129,23 @@ export function ClinicalHistoryPage() {
     setShowModal(true)
   }
 
+  // ESC key listener to close modal safely
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && showModal) {
+        handleCloseModal()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [showModal])
+
   const handleCloseModal = () => {
     setShowModal(false)
     if (searchParams.get('action')) {
-      searchParams.delete('action')
-      setSearchParams(searchParams)
+      const nextParams = new URLSearchParams(searchParams)
+      nextParams.delete('action')
+      setSearchParams(nextParams, { replace: true })
     }
   }
 
@@ -548,15 +560,26 @@ export function ClinicalHistoryPage() {
 
       {/* Modal Registrar Atención Clínica */}
       {showModal && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="bg-white w-full sm:max-w-2xl rounded-t-2xl sm:rounded-2xl shadow-2xl border border-slate-200 flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 z-50 overflow-y-auto flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity"
+            onClick={handleCloseModal}
+            aria-hidden="true"
+          />
+          <div
+            className="relative bg-white w-full sm:max-w-2xl rounded-t-2xl sm:rounded-2xl shadow-2xl border border-slate-200 flex flex-col max-h-[90vh] z-10"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10 rounded-t-2xl">
-              <h2 className="text-base sm:text-lg font-bold text-slate-900">
+              <h2 className="text-base sm:text-lg font-bold text-slate-900 m-0">
                 Registrar Atención Clínica
               </h2>
               <button
+                type="button"
                 onClick={handleCloseModal}
-                className="p-2 text-slate-400 hover:text-slate-600 rounded-lg min-h-[44px] min-w-[44px] flex items-center justify-center"
+                className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl min-h-[44px] min-w-[44px] flex items-center justify-center transition-colors cursor-pointer"
+                aria-label="Cerrar ventana"
+                title="Cerrar ventana (ESC)"
               >
                 <X size={20} />
               </button>

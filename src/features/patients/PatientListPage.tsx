@@ -79,8 +79,11 @@ export const PatientListPage: React.FC = () => {
 
   // Handle URL query parameters (e.g. ?action=new)
   useEffect(() => {
-    if (searchParams.get('action') === 'new' && !showModal) {
+    if (searchParams.get('action') === 'new') {
       handleOpenCreate()
+      const nextParams = new URLSearchParams(searchParams)
+      nextParams.delete('action')
+      setSearchParams(nextParams, { replace: true })
     }
   }, [searchParams])
 
@@ -545,7 +548,7 @@ export const PatientListPage: React.FC = () => {
               <button
                 type="button"
                 onClick={handleCloseModal}
-                className="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition-colors"
+                className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl min-w-[44px] min-h-[44px] flex items-center justify-center transition-colors cursor-pointer"
                 aria-label="Cerrar ventana"
                 title="Cerrar ventana (ESC)"
               >
